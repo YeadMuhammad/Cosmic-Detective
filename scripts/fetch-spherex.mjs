@@ -41,6 +41,9 @@ const TAP_SYNC = 'https://irsa.ipac.caltech.edu/TAP/sync'
 const IRSA_ROOT = 'https://irsa.ipac.caltech.edu/'
 const DEFAULT_FIXTURES = new URL('../src/data/fixtures.ts', import.meta.url)
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6']
+const SAFE_TILE_ID = /^[A-Za-z0-9._-]+$/
+const RESERVED_TILE_IDS = new Set(['__proto__', 'constructor', 'prototype'])
+const isSafeTileId = (id) => typeof id === 'string' && SAFE_TILE_ID.test(id) && !RESERVED_TILE_IDS.has(id)
 
 // ---------------------------------------------------------------- pure helpers
 
@@ -213,22 +216,31 @@ async function main() {
     minGapDays: num('min-gap-days', v['min-gap-days']), maxGapDays: num('max-gap-days', v['max-gap-days']),
     wlTolUm: num('wl-tol-um', v['wl-tol-um']),
   }
+  if (opts.minGapDays > opts.maxGapDays) throw new Error('--min-gap-days must not exceed --max-gap-days')
+  if (opts.wlTolUm < 0) throw new Error('--wl-tol-um must not be negative')
+  const validateTile = (tile) => {
+    if (!isSafeTileId(tile.id)) {
+      throw new Error(`Invalid tile id "${tile.id}": use only safe filename characters and not a reserved object key`)
+    }
+    if (!(tile.size > 0)) throw new Error(`--size must be positive for tile "${tile.id}"`)
+    return tile
+  }
 
   // Targets
   let tiles
   if (v.ra || v.dec || v.id) {
     if (!(v.ra && v.dec && v.id)) throw new Error('Ad hoc mode needs --id, --ra and --dec together')
-    tiles = [{ id: v.id, ra: num('ra', v.ra), dec: num('dec', v.dec), size: num('size', v.size ?? '0.1') }]
+    tiles = [validateTile({ id: v.id, ra: num('ra', v.ra), dec: num('dec', v.dec), size: num('size', v.size ?? '0.1') })]
   } else {
     const src = await readFile(v.fixtures ? new URL(v.fixtures, `file://${process.cwd()}/`) : DEFAULT_FIXTURES, 'utf8')
-    tiles = parseFixtureTiles(src)
+    tiles = parseFixtureTiles(src).map(validateTile)
     if (!tiles.length) throw new Error('Found no tiles in the fixtures file; has its format changed?')
     if (v.tile?.length) {
       const missing = v.tile.filter((t) => !tiles.some((x) => x.id === t))
       if (missing.length) throw new Error(`Unknown tile id(s): ${missing.join(', ')}`)
       tiles = tiles.filter((t) => v.tile.includes(t.id))
     }
-    if (v.size) tiles = tiles.map((t) => ({ ...t, size: num('size', v.size) }))
+    if (v.size) tiles = tiles.map((t) => validateTile({ ...t, size: num('size', v.size) }))
   }
 
   if (v.list) { for (const t of tiles) console.log(`${t.id.padEnd(18)} RA ${t.ra}  Dec ${t.dec}  size ${t.size}°`); return }
@@ -238,8 +250,15 @@ async function main() {
   const manifestUrl = new URL('manifest.json', outDir)
   if (!v['dry-run']) await mkdir(rawDir, { recursive: true })
 
-  let manifest = { generatedAt: null, source: 'IRSA TAP spherex.plane/spherex.artifact', options: opts, tiles: {} }
-  try { manifest = { ...manifest, ...JSON.parse(await readFile(manifestUrl, 'utf8')) } } catch { /* first run */ }
+  let priorTiles = {}
+  try {
+    const previous = JSON.parse(await readFile(manifestUrl, 'utf8'))
+    if (previous.tiles && typeof previous.tiles === 'object' && !Array.isArray(previous.tiles)) {
+      priorTiles = Object.fromEntries(Object.entries(previous.tiles).filter(([id]) => isSafeTileId(id)))
+    }
+  } catch { /* first run or unreadable prior manifest */ }
+  // Keep valid entries for tiles not selected this run; current-run metadata always wins.
+  const manifest = { generatedAt: null, source: 'IRSA TAP spherex.plane/spherex.artifact', options: opts, tiles: priorTiles }
 
   const results = []
   const jobs = tiles.map((t) => async () => {
