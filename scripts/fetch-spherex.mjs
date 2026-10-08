@@ -4,8 +4,7 @@
 // asks for (observation dates, detector band, wavelength range).
 //
 // What it does, per tile (id, RA, Dec, size):
-//   1. Asks IRSA's TAP service which SPHEREx spectral images cover the position
-//      (ADQL on spherex.plane JOIN spherex.artifact).
+//   1. Asks IRSA's SIA2 service which SPHEREx spectral-image MEFs cover the position.
 //   2. Picks ONE pair of images: same detector band, similar wavelength range,
 //      observed between --min-gap-days and --max-gap-days apart. Earlier = epoch A.
 //   3. Downloads a small FITS cutout of each from IRSA's cutout service
@@ -28,19 +27,18 @@
 //   node scripts/fetch-spherex.mjs                           # every tile in fixtures.ts
 //   node scripts/fetch-spherex.mjs --id test --ra 164.15 --dec 7.04 --size 0.1   # ad hoc position
 //
-// Sources: IRSA TAP https://irsa.ipac.caltech.edu/TAP ; ADQL pattern and column names
-// follow the open-source SPXQuery package; cutout syntax follows IRSA's "SPHEREx
-// Cutout Capabilities" page (append ?center=RA,DEC&size=DEG to the image URL).
-// QR2 supersedes QR1 and is the default returned by IRSA program APIs.
+// Sources: IRSA SIA2 https://irsa.ipac.caltech.edu/SIA and the SPHEREx archive
+// documentation. SIA2 access_url values point at real on-premises MEFs; the
+// documented cutout service is used to download only the requested region.
 
 import { writeFile, mkdir, readFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 
-const TAP_SYNC = 'https://irsa.ipac.caltech.edu/TAP/sync'
-const IRSA_ROOT = 'https://irsa.ipac.caltech.edu/'
+const SIA_ENDPOINT = 'https://irsa.ipac.caltech.edu/SIA'
 const DEFAULT_FIXTURES = new URL('../src/data/fixtures.ts', import.meta.url)
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6']
+const COLLECTIONS = new Set(['spherex_qr2', 'spherex_qr2_deep', 'spherex_qr3', 'spherex_qr3_deep'])
 const SAFE_TILE_ID = /^[A-Za-z0-9._-]+$/
 const RESERVED_TILE_IDS = new Set(['__proto__', 'constructor', 'prototype'])
 const isSafeTileId = (id) => typeof id === 'string' && SAFE_TILE_ID.test(id) && !RESERVED_TILE_IDS.has(id)
@@ -80,28 +78,30 @@ export function parseCsv(text) {
   return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ''])))
 }
 
-export function buildQuery(ra, dec, band) {
-  const bandClause = band ? ` AND p.energy_bandpassname = 'SPHEREx-${band}'` : ''
-  return `SELECT '${IRSA_ROOT}' || a.uri AS download_url, p.obs_publisher_did, p.time_bounds_lower, p.time_bounds_upper, ` +
-    `p.energy_bandpassname, p.energy_bounds_lower, p.energy_bounds_upper ` +
-    `FROM spherex.artifact a JOIN spherex.plane p ON a.planeid = p.planeid ` +
-    `WHERE CONTAINS(POINT('ICRS', ${ra}, ${dec}), p.poly) = 1${bandClause} ORDER BY p.time_bounds_lower`
+export function buildSiaUrl(ra, dec, band, collection = 'spherex_qr2') {
+  const params = new URLSearchParams({
+    COLLECTION: collection,
+    POS: `circle ${ra} ${dec} 0.001`,
+    RESPONSEFORMAT: 'JSON',
+    MAXREC: '1000',
+  })
+  return `${SIA_ENDPOINT}?${params}`
 }
 
 export const mjdToIso = (mjd) => new Date((mjd - 40587) * 86400000).toISOString().slice(0, 10)
 
-/** One TAP row -> observation record. Returns null if the row is unusable. */
+/** One SIA2 row -> observation record. Returns null if the row is unusable. */
 export function toObservation(r) {
-  const url = r.download_url
+  const url = r.access_url
   const did = r.obs_publisher_did ?? ''
-  const id = /\?([^/]+)/.exec(did)?.[1]
-  const lo = parseFloat(r.time_bounds_lower), hi = parseFloat(r.time_bounds_upper)
-  const wlLo = parseFloat(r.energy_bounds_lower) * 1e6, wlHi = parseFloat(r.energy_bounds_upper) * 1e6 // m -> µm
+  const id = r.obs_id || /\?([^/]+)/.exec(did)?.[1]
+  const lo = parseFloat(r.t_min), hi = parseFloat(r.t_max)
+  const wlLo = parseFloat(r.em_min) * 1e6, wlHi = parseFloat(r.em_max) * 1e6 // m -> µm
   if (!url || !id || ![lo, hi, wlLo, wlHi].every(Number.isFinite)) return null
-  if (!/\.fits(\?|$)/i.test(url)) return null // skip non-FITS artifacts (previews, etc.)
+  if (!/\.fits(\?|$)/i.test(url) || r.access_format !== 'image/fits') return null
   const name = r.energy_bandpassname ?? ''
   return {
-    obsId: id,
+    obsId: `${id}/${name}`,
     band: name.includes('-') ? name.split('-').pop() : name,
     mjd: (lo + hi) / 2,
     date: mjdToIso((lo + hi) / 2),
@@ -137,42 +137,74 @@ export function pickPair(obs, { minGapDays, maxGapDays, wlTolUm }) {
   return best
 }
 
-export const cutoutUrl = (url, ra, dec, sizeDeg) => `${url}?center=${ra},${dec}&size=${sizeDeg}`
+export const cutoutUrl = (url, ra, dec, sizeDeg) => {
+  const target = new URL(url)
+  target.searchParams.set('center', `${ra},${dec}`)
+  target.searchParams.set('size', sizeDeg)
+  return target.href
+}
 const isFits = (buf) => buf.length > 2880 && buf.subarray(0, 9).toString('ascii') === 'SIMPLE  ='
 
 // ---------------------------------------------------------------- network
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const retryAfterMs = (headers) => {
+  const value = headers.get('retry-after')?.trim()
+  if (!value) return undefined
+  const seconds = Number(value)
+  return Number.isFinite(seconds) ? seconds * 1000 : undefined
+}
 
-async function withRetry(label, fn, tries = 3) {
+async function withRetry(label, fn, tries = 4) {
   let err
   for (let i = 1; i <= tries; i++) {
     try { return await fn() } catch (e) {
       err = e
       console.log(`  retry ${i}/${tries} ${label}: ${e.message}`)
-      if (i < tries) await sleep(1500 * i)
+      if (i < tries) await sleep(Math.min(30000, e.retryAfterMs ?? 1500 * i))
     }
   }
   throw err
 }
 
-async function queryTap(ra, dec, band) {
-  const body = new URLSearchParams({ REQUEST: 'doQuery', LANG: 'ADQL', FORMAT: 'csv', QUERY: buildQuery(ra, dec, band) })
-  const text = await withRetry('TAP query', async () => {
-    const res = await fetch(TAP_SYNC, { method: 'POST', body, signal: AbortSignal.timeout(120000) })
+async function querySia(ra, dec, band, collection) {
+  const text = await withRetry('SIA query', async () => {
+    const res = await fetch(buildSiaUrl(ra, dec, band, collection), {
+      headers: { Accept: 'application/json', 'User-Agent': 'cosmic-detective/0.1 (+https://github.com/YeadMuhammad/Cosmic-Detective)' },
+      signal: AbortSignal.timeout(120000),
+    })
     const t = await res.text()
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${t.slice(0, 200).replace(/\s+/g, ' ')}`)
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status} ${t.slice(0, 200).replace(/\s+/g, ' ')}`)
+      const retryAfter = retryAfterMs(res.headers)
+      if (retryAfter !== undefined) error.retryAfterMs = retryAfter
+      throw error
+    }
     return t
   })
+  const table = JSON.parse(text).VOTABLE?.RESOURCE_ARRAY?.at(-1)?.TABLE
+  const fields = table?.FIELD_ARRAY?.map((field) => field['<xmlattr>']?.name)
+  const rows = table?.DATA?.TABLEDATA
+  if (!fields || !Array.isArray(rows)) throw new Error('SIA response did not contain a result table')
   const seen = new Set()
-  return parseCsv(text).map(toObservation).filter((o) => o && !seen.has(o.obsId) && seen.add(o.obsId))
+  return rows.map((row) => toObservation(Object.fromEntries(fields.map((name, i) => [name, row[i] ?? '']))))
+    .filter((o) => o && (!band || o.band === band))
+    .filter((o) => o && !seen.has(o.obsId) && seen.add(o.obsId))
 }
 
 async function downloadCutout(url, dest) {
   const buf = await withRetry(dest.pathname.split('/').pop(), async () => {
-    const res = await fetch(url, { signal: AbortSignal.timeout(180000) })
+    const res = await fetch(url, {
+      headers: { Accept: 'application/fits', 'User-Agent': 'cosmic-detective/0.1 (+https://github.com/YeadMuhammad/Cosmic-Detective)' },
+      signal: AbortSignal.timeout(180000),
+    })
     const b = Buffer.from(await res.arrayBuffer())
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const error = new Error(`HTTP ${res.status} ${res.statusText}`)
+      const retryAfter = retryAfterMs(res.headers)
+      if (retryAfter !== undefined) error.retryAfterMs = retryAfter
+      throw error
+    }
     if (!isFits(b)) throw new Error(`response is not a FITS file (${b.length} bytes)`)
     return b
   })
@@ -191,6 +223,7 @@ function usage() {
   --fixtures <path>       fixtures file to read tiles from (default src/data/fixtures.ts)
   --size <deg>            cutout size override for all tiles (default: each tile's own size)
   --band <D1..D6>         restrict to one SPHEREx detector band
+  --collection <name>     SIA2 collection (default spherex_qr2; also spherex_qr3[_deep] and spherex_qr2_deep)
   --min-gap-days <n>      minimum time between epochs (default 60)
   --max-gap-days <n>      maximum time between epochs (default 400)
   --wl-tol-um <x>         max midpoint-wavelength difference in microns (default 0.02)
@@ -203,7 +236,7 @@ async function main() {
     options: {
       list: { type: 'boolean' }, 'dry-run': { type: 'boolean' }, help: { type: 'boolean', short: 'h' },
       tile: { type: 'string', multiple: true }, id: { type: 'string' }, ra: { type: 'string' }, dec: { type: 'string' },
-      fixtures: { type: 'string' }, size: { type: 'string' }, band: { type: 'string' },
+      fixtures: { type: 'string' }, size: { type: 'string' }, band: { type: 'string' }, collection: { type: 'string', default: 'spherex_qr2' },
       'min-gap-days': { type: 'string', default: '60' }, 'max-gap-days': { type: 'string', default: '400' },
       'wl-tol-um': { type: 'string', default: '0.02' }, out: { type: 'string', default: 'data/spherex' },
       concurrency: { type: 'string', default: '3' },
@@ -211,6 +244,7 @@ async function main() {
   })
   if (v.help) return usage()
   if (v.band && !BANDS.includes(v.band)) throw new Error(`--band must be one of ${BANDS.join(', ')}`)
+  if (!COLLECTIONS.has(v.collection)) throw new Error(`--collection must be one of ${[...COLLECTIONS].join(', ')}`)
   const num = (name, x) => { const n = Number(x); if (!Number.isFinite(n)) throw new Error(`--${name} must be a number`); return n }
   const opts = {
     minGapDays: num('min-gap-days', v['min-gap-days']), maxGapDays: num('max-gap-days', v['max-gap-days']),
@@ -258,13 +292,13 @@ async function main() {
     }
   } catch { /* first run or unreadable prior manifest */ }
   // Keep valid entries for tiles not selected this run; current-run metadata always wins.
-  const manifest = { generatedAt: null, source: 'IRSA TAP spherex.plane/spherex.artifact', options: opts, tiles: priorTiles }
+  const manifest = { generatedAt: null, source: `IRSA SIA2 ${v.collection} spectral-image MEFs`, options: { ...opts, collection: v.collection }, tiles: priorTiles }
 
   const results = []
   const jobs = tiles.map((t) => async () => {
     const entry = { ra: t.ra, dec: t.dec, sizeDeg: t.size, status: 'pending', covering: 0 }
     try {
-      const obs = await queryTap(t.ra, t.dec, v.band)
+      const obs = await querySia(t.ra, t.dec, v.band, v.collection)
       entry.covering = obs.length
       if (!obs.length) entry.status = 'no-coverage'
       else {
