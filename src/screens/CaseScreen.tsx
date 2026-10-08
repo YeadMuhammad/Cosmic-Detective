@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CHAPTERS, getLevel, GUIDE, rankFor, TILE_IMG, TILES, TOOLS, type Tile, type Verdict } from '../data/fixtures'
 import { useGame, type CaseSummary } from '../lib/store'
@@ -13,11 +14,6 @@ interface Result { verdict: Verdict; xp: number; correct: boolean; checks: Check
 
 const dist = (p: [number, number], q: [number, number]) => Math.hypot(p[0] - q[0], p[1] - q[1])
 
-/**
- * Demo stand-in for the verification service. Mirrors the pipeline in the design
- * doc: stationary source check, blend & halo check, catalog cross-match, and
- * (from chapter 2) weighted consensus. Answers come from the tile fixtures.
- */
 function verify(tile: Tile, marker: [number, number] | null, action: 'flag' | 'clear', chapter: number, weight: number, isTarget: boolean): Result {
   const consensus = (agree: number): Check => ({ name: 'Weighted consensus', status: agree > 0.7 ? 'pass' : 'info', note: `${9 + (tile.code.charCodeAt(4) % 9)} analysts reviewed · agreement ${agree.toFixed(2)} · your weight ×${weight.toFixed(1)}` })
   if (action === 'clear') {
@@ -67,9 +63,22 @@ export function CaseScreen({ n }: { n: number }) {
   const [time, setTime] = useState(0)
   const ticks = useRef(0)
 
-  const ok = level && levelState(n, s.completed, s.tiles) !== 'locked' && levelState(n, s.completed, s.tiles) !== 'sealed'
+  // Pure boolean toggle for showcaseMode — does not mutate persistent progress
+  const toggleDevMode = () => {
+    set((p) => ({
+      ...p,
+      showcaseMode: !p.showcaseMode,
+    }))
+  }
+
+  const ok = s.showcaseMode || (level && levelState(n, s.completed, s.tiles, s.showcaseMode) !== 'locked' && levelState(n, s.completed, s.tiles, s.showcaseMode) !== 'sealed')
   const chapter = level?.chapter ?? 1
-  const tools = { blink: true, diff: rank.n >= 2 && chapter >= 2, bands: false, lightcurve: false }
+  const tools = {
+    blink: true,
+    diff: s.showcaseMode || (rank.n >= 2 && chapter >= 2),
+    bands: s.showcaseMode || (rank.n >= 3 && chapter >= 3),
+    lightcurve: s.showcaseMode || (rank.n >= 4 && chapter >= 4),
+  }
 
   useEffect(() => { if (phase !== 'scan') return; const id = setInterval(() => setTime((t) => t + 1), 1000); return () => clearInterval(id) }, [phase])
 
@@ -77,7 +86,6 @@ export function CaseScreen({ n }: { n: number }) {
   const solved = !!level && results[level.target]?.verdict === 'known'
   const reviewed = Object.keys(results).length
 
-  // Keep the case summary current so the debrief (and the tutorial) can read it.
   const summary = useMemo<CaseSummary | null>(() => {
     if (!level) return null
     const r = Object.values(results)
@@ -90,6 +98,7 @@ export function CaseScreen({ n }: { n: number }) {
       results: level.tiles.map((id) => ({ id, verdict: results[id]?.verdict ?? 'unreviewed' })),
     }
   }, [results, level, n, solved, reviewed])
+
   useEffect(() => { if (summary && reviewed) set((p) => ({ ...p, last: summary })) }, [summary, reviewed, set])
 
   const open = (id: string) => {
@@ -115,7 +124,6 @@ export function CaseScreen({ n }: { n: number }) {
       c.status === 'fail' ? sfx.reject() : c.status === 'pass' ? sfx.pass() : sfx.scan()
     }, 650 * (i + 1)))
     setTimeout(() => {
-      // Bonus tiles are one-shot; the mandatory target may be retried until solved.
       setResults((prev) => {
         const keep = prev[tile.id] && tile.id !== level.target
         return keep ? prev : { ...prev, [tile.id]: res }
@@ -125,11 +133,18 @@ export function CaseScreen({ n }: { n: number }) {
     }, 650 * (res.checks.length + 1))
   }
 
-  // keyboard shortcuts
+  // Keyboard shortcuts + Secret Dev Combo (Shift + D)
   useEffect(() => {
-    if (phase !== 'scan') return
     const on = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT' || s.tutorial) return
+      if ((e.target as HTMLElement).tagName === 'INPUT') return
+
+      if (e.shiftKey && e.key.toLowerCase() === 'd') {
+        e.preventDefault()
+        toggleDevMode()
+        return
+      }
+
+      if (phase !== 'scan' || s.tutorial) return
       const k = e.key.toLowerCase()
       if (k === ' ') { e.preventDefault(); setTool(mode === 'blink' ? 'a' : 'blink') }
       if (k === '1') setTool('a')
@@ -166,7 +181,14 @@ export function CaseScreen({ n }: { n: number }) {
     <div className="screen case-screen" style={{ ['--accent' as any]: ch.accent }}>
       <div className="case-bar">
         <div className="case-id">
-          <span className="mono kicker">CH {chapter} · CASE {String(n).padStart(3, '0')}</span>
+          <span
+            className="mono kicker"
+            style={{ cursor: 'pointer' }}
+            title="Click to toggle Developer Unlock"
+            onClick={toggleDevMode}
+          >
+            CH {chapter} · CASE {String(n).padStart(3, '0')} {s.showcaseMode ? '⚡ [DEV]' : ''}
+          </span>
           <h1 className="display">{level.title}</h1>
         </div>
         <div className={`objective ${solved ? 'done' : ''}`}>
@@ -222,8 +244,8 @@ export function CaseScreen({ n }: { n: number }) {
                   <svg viewBox="0 0 20 20" width="16" height="16"><circle cx="7.5" cy="10" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" /><circle cx="12.5" cy="10" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
                   Difference{!tools.diff && <small>CH 2</small>}
                 </button>
-                <button className="tool locked" onClick={() => sfx.reject()} title="Unlocks in Chapter 3"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M2 14 L6 8 L10 12 L14 5 L18 9" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>Bands<small>CH 3</small></button>
-                <button className="tool locked" onClick={() => sfx.reject()} title="Unlocks in Chapter 4"><svg viewBox="0 0 20 20" width="16" height="16"><path d="M2 10 H5 L7 5 L10 15 L13 8 L15 10 H18" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>Light Curve<small>CH 4</small></button>
+                <button className={`tool ${tools.bands ? '' : 'locked'}`} onClick={() => tools.bands ? setTool('bands' as any) : sfx.reject()} title={tools.bands ? 'Bands viewer' : 'Unlocks in Chapter 3'}><svg viewBox="0 0 20 20" width="16" height="16"><path d="M2 14 L6 8 L10 12 L14 5 L18 9" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>Bands{!tools.bands && <small>CH 3</small>}</button>
+                <button className={`tool ${tools.lightcurve ? '' : 'locked'}`} onClick={() => tools.lightcurve ? setTool('lightcurve' as any) : sfx.reject()} title={tools.lightcurve ? 'Lightcurve viewer' : 'Unlocks in Chapter 4'}><svg viewBox="0 0 20 20" width="16" height="16"><path d="M2 10 H5 L7 5 L10 15 L13 8 L15 10 H18" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>Light Curve{!tools.lightcurve && <small>CH 4</small>}</button>
                 {mode === 'blink' && (
                   <label className="speed mono">RATE<input type="range" min={250} max={1400} step={50} value={1650 - speed} onChange={(e) => setSpeed(1650 - +e.target.value)} /></label>
                 )}
@@ -352,3 +374,4 @@ export function CaseScreen({ n }: { n: number }) {
     </div>
   )
 }
+

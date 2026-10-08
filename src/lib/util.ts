@@ -1,5 +1,10 @@
 // Serve images through the Netlify Image CDN instead of shipping full-size originals.
-export const cdn = (url: string, w: number) => `/.netlify/images?url=${encodeURIComponent(url)}&w=${w}&fm=webp`
+//export const cdn = (url: string, w: number) => `/.netlify/images?url=${encodeURIComponent(url)}&w=${w}&fm=webp`
+export const cdn = (url: string, _w?: number) => {
+  const base = import.meta.env.BASE_URL || '/'
+  const cleanUrl = url.startsWith('/') ? url.slice(1) : url
+  return `${base.endsWith('/') ? base : base + '/'}${cleanUrl}`
+}
 
 export function raStr(deg: number) {
   const h = deg / 15

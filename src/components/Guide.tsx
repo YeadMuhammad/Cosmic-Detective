@@ -1,3 +1,5 @@
+
+
 import { useEffect, useState } from 'react'
 import { GUIDE } from '../data/fixtures'
 import { useGame } from '../lib/store'
@@ -45,11 +47,58 @@ export function Guide() {
   }, [cfg])
 
   if (!cfg || !step) return null
+
   const skip = () => set((p) => ({ ...p, tutorial: null, tutorialDone: true }))
+
   const manual = () => {
     if (step === 5) { set((p) => ({ ...p, tutorial: 6 })); navigate('/debrief/1') }
     if (step === 7) { set((p) => ({ ...p, tutorial: null, tutorialDone: true })); sfx.success() }
   }
+
+  // Synchronize tutorial step, page routes, and game UI actions
+  const handleStepChange = (targetStep: number) => {
+    sfx.click()
+
+    if (targetStep < 1) return
+    if (targetStep > 7) {
+      set((p) => ({ ...p, tutorial: null, tutorialDone: true }))
+      sfx.success()
+      return
+    }
+
+    set((p) => ({ ...p, tutorial: targetStep }))
+
+    // Execute state transitions based on target step
+    setTimeout(() => {
+      const clickBeginBtn = () => {
+        const btn = Array.from(document.querySelectorAll('button')).find(
+          (b) => b.textContent?.toUpperCase().includes('BEGIN INVESTIGATION')
+        )
+        if (btn) btn.click()
+      }
+
+      if (targetStep === 1) {
+        navigate('/case/1')
+      } else if (targetStep === 2) {
+        navigate('/case/1')
+        clickBeginBtn()
+      } else if (targetStep >= 3 && targetStep <= 5) {
+        navigate('/case/1')
+        clickBeginBtn()
+
+        // Wait for briefing modal to unmount before opening tile inspector
+        setTimeout(() => {
+          const tileTarget = document.querySelector<HTMLElement>('[data-tut="tile-target"]')
+          if (tileTarget) tileTarget.click()
+        }, 120)
+      } else if (targetStep === 6) {
+        navigate('/debrief/1')
+      } else if (targetStep === 7) {
+        navigate('/')
+      }
+    }, 50)
+  }
+
   const pad = 10
   const r = rect && { x: rect.left - pad, y: rect.top - pad, w: rect.width + pad * 2, h: rect.height + pad * 2 }
   const side = r && r.x + r.w / 2 > window.innerWidth / 2 ? 'left' : 'right'
@@ -75,9 +124,50 @@ export function Guide() {
           </div>
           <h4>{cfg.title}</h4>
           <p>{typed}<span className="caret" /></p>
+
+          {/* Direct Step Jump Bar */}
+          <div style={{ display: 'flex', gap: '4px', margin: '8px 0' }}>
+            {[1, 2, 3, 4, 5, 6, 7].map((num) => (
+              <button
+                key={num}
+                className={`btn sm ${num === step ? 'btn-primary' : ''}`}
+                style={{
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  opacity: num === step ? 1 : 0.6
+                }}
+                onClick={() => handleStepChange(num)}
+              >
+                {num}
+              </button>
+            ))}
+          </div>
+
           <div className="guide-actions">
-            {cfg.manual && <button className="btn btn-primary sm" onClick={() => { sfx.click(); manual() }}><span>{cfg.manual}</span></button>}
-            <button className="link-btn" onClick={() => { sfx.click(); skip() }}>Skip tutorial</button>
+            <button
+              className="btn sm"
+              disabled={step <= 1}
+              onClick={() => handleStepChange(step - 1)}
+            >
+              ← Prev
+            </button>
+
+            {cfg.manual && (
+              <button className="btn btn-primary sm" onClick={() => { sfx.click(); manual() }}>
+                <span>{cfg.manual}</span>
+              </button>
+            )}
+
+            <button
+              className="btn btn-primary sm"
+              onClick={() => handleStepChange(step + 1)}
+            >
+              <span>{step === 7 ? 'Finish' : 'Next →'}</span>
+            </button>
+
+            <button className="link-btn" onClick={() => { sfx.click(); skip() }}>
+              Skip tutorial
+            </button>
           </div>
         </div>
       </div>
