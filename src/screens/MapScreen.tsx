@@ -1,6 +1,4 @@
 
-
-
 import { useEffect } from 'react'
 import { CHAPTERS, getLevel, LEVEL_NAMES, PLAYABLE, rankFor, RANKS, TOOLS } from '../data/fixtures'
 import { useGame } from '../lib/store'
