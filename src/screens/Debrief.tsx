@@ -66,7 +66,7 @@ export function Debrief({ n }: { n: number }) {
       </div>
 
       <div className="debrief-grid">
-        <section className="reward" data-tut="xp">
+        <section className="reward" data-tut="reward">
           <div className="reward-xp display">+{shown}<span>XP</span></div>
           <div className="reward-break mono">
             {level.tutorial && <div><span>Training reward</span><b>+50</b></div>}
