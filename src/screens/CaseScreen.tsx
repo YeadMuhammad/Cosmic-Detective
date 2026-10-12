@@ -130,6 +130,7 @@ export function CaseScreen({ n }: { n: number }) {
       })
       if (res.verdict === 'known') sfx.success()
       if (tutorial === 4 && tile.id === level.target && res.verdict === 'known') set((p) => ({ ...p, tutorial: 5 }))
+      setRunning(null)
     }, 650 * (res.checks.length + 1))
   }
 

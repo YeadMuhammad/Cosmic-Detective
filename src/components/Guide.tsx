@@ -1,5 +1,3 @@
-
-
 import { useEffect, useState } from 'react'
 import { GUIDE } from '../data/fixtures'
 import { useGame } from '../lib/store'
@@ -13,7 +11,7 @@ export const TUTORIAL: Record<number, Step> = {
   3: { target: 'tool-blink', title: 'The Blink Comparator', text: 'Two exposures of the same sky, taken about forty years apart. Switch on the blink comparator and watch. Stars stay put. Something here does not.' },
   4: { target: 'inspect', title: 'Mark and flag', text: 'See the bright star that jumps? Click it on either plate to place your marker, then press Flag Anomaly. The rings show you where to look, this once.' },
   5: { target: 'result', title: 'Evidence before reward', text: 'A flag is never taken at face value. Each check runs in the open, including rejections. Yours survived, and matched a real catalogue: Barnard\'s Star, the fastest star in our sky.', manual: 'File the report' },
-  6: { target: 'xp', title: 'Experience and rank', text: 'Your report is in. Collect your reward and watch your progress toward Rank 2, Field Analyst. Every tile you review counts.' },
+  6: { target: 'reward', title: 'Experience and rank', text: 'Your report is in. Collect your reward and watch your progress toward Rank 2, Field Analyst. Every tile you review counts.' },
   7: { target: 'next-level', title: 'The chapter map', text: 'Case 002 is now unlocked. From here on you work the full batch on your own. I will be in the archive if you need me.', manual: 'Got it' },
 }
 
