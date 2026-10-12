@@ -24,6 +24,8 @@ export interface GameState {
   history: { level: number; title: string; xp: number; tiles: number; at: string }[]
   rankUp: number | null // rank number to celebrate
   presenter: boolean
+  /** Developer unlock (Shift + D). Session only: never written to localStorage, always false on load. */
+  showcaseMode: boolean
   last: CaseSummary | null // most recent case, read by the debrief screen
 }
 
@@ -37,7 +39,8 @@ const KEY = 'cosmic-detective:v1'
 export const FRESH: GameState = {
   callsign: '', started: false, theme: 'dark', colorblind: false, sound: true,
   xp: 0, tiles: 0, correct: 0, judged: 0, known: 0, artifacts: 0, clears: 0,
-  completed: [], badges: [], tutorial: null, tutorialDone: false, history: [], rankUp: null, presenter: false, last: null,
+  completed: [], badges: [], tutorial: null, tutorialDone: false, history: [], rankUp: null, presenter: false,
+  showcaseMode: false, last: null,
 }
 
 /** A pre-played save so a presentation can jump straight into a rank-up moment. */
@@ -62,10 +65,13 @@ const GameCtx = createContext<Ctx>(null!)
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<GameState>(() => {
-    try { return { ...FRESH, ...JSON.parse(localStorage.getItem(KEY) || '{}') } } catch { return FRESH }
+    // showcaseMode is forced off so a saved dev unlock can never come back after a refresh.
+    try { return { ...FRESH, ...JSON.parse(localStorage.getItem(KEY) || '{}'), showcaseMode: false } } catch { return FRESH }
   })
   useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(s))
+    // Session-only fields are left out of the saved copy.
+    const { showcaseMode: _session, ...persisted } = s
+    localStorage.setItem(KEY, JSON.stringify(persisted))
     document.documentElement.dataset.theme = s.theme
     document.documentElement.dataset.cb = s.colorblind ? 'on' : 'off'
     setSound(s.sound)
