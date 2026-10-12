@@ -340,6 +340,9 @@ this), but worth remembering when judging balance.
 - Every 250 ms (and on resize/scroll) it queries `[data-tut="…"]`, measures the rect, and
   draws four click-blocking panels around a transparent hole plus a pulsing frame.
 - A typewriter effect reveals the step text; the step table may include a manual button.
+- The guide renders a visible 1–7 direct step-jump bar. It can set any tutorial step
+  directly and routes to the hard-coded tutorial case, debrief, or title screen; it is
+  separate from the normal action-driven progression.
 
 Step transitions are **owned by the screens**, not by `Guide`:
 
@@ -467,12 +470,11 @@ metadata.
 
 ## 16. Known risks and inconsistencies (found while reading)
 
-These are observations from the code as provided, not from running it. Severity is a
-judgement call.
+These are observations from the current code. Severity is a judgement call.
 
 | # | Area | Observation | Impact |
 |---|---|---|---|
-| R1 | Tutorial step 6 | `data-tut="xp"` is on `XPBar` (rendered in the HUD *and* inside Debrief) and on `.reward`. `Guide` uses `document.querySelector`, which returns the **first** match — the HUD bar. The blockers then cover the rest of the page, including **Collect reward**, and step 6 has no manual button. | Likely tutorial soft-lock; only "Skip tutorial" escapes. High for first-run UX. |
+| R1 | Tutorial step 6 | `data-tut="xp"` is on `XPBar` (rendered in the HUD *and* inside Debrief) and on `.reward`. `Guide` uses `document.querySelector`, which returns the **first** match — the HUD bar. The blockers then cover the rest of the page, including **Collect reward**, and step 6 has no manual button. | Tutorial soft-lock; only "Skip tutorial" escapes. High for first-run UX. |
 | R2 | Replay farming | Completed cases stay playable. `CaseScreen` rewrites `last` with `collected: false` as soon as a tile is reviewed, so `Debrief.collect()` can award XP/tiles again. | Unlimited XP and rank from replays. Fine for a demo, a real issue for the product. |
 | R3 | Target un-solve | The target tile is always overwritten on resubmit and stays editable after being solved, so a later wrong flag replaces `known` and un-solves the case. | Confusing; can disable "File report". |
 | R4 | Debrief trust | `Debrief` does not check `last.solved`; hitting `#/debrief/:n` after reviewing tiles but not solving shows "CASE CLOSED" and allows collecting. | Reward bypass. |

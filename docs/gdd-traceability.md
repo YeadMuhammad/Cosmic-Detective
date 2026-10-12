@@ -42,7 +42,7 @@ has no requirement numbers). Use these IDs in tickets and in `PLAN.md`.
 **Headline:** the *experience* layer (client, tools 1–2, verification UI, tutorial, accessibility)
 is largely built. The *truth* layer is not: no SPHEREx data, no real verification, no real
 consensus, no server. Two GDD §12 criteria are not met, and one of those (tutorial completion)
-is likely blocked by a bug.
+is blocked by the known Step 6 spotlight bug.
 
 ---
 
@@ -195,7 +195,7 @@ Consequences if changed: update `RANKS`, `DEMO_SAVE` (189 tiles), the Title butt
 | 1 | Read first case, tap continue | 1 | **Done** | "Begin Investigation" button. |
 | 2 | Open the tile | 2 | **Done** | Target thumbnail pulses and is spotlighted. |
 | 3 | Toggle blink at least once | 3 | **Partial** | Code requires **two** blink ticks (the player must see it flip), slightly stricter than the GDD. |
-| 4 | Flag the tile the guide points to | 4 | **Partial** | Code spotlights the whole inspect area (not the flag button) and the player must also **place a marker** first. The GDD sequence has no marker step. Hint rings reveal the answer on purpose. |
+| 4 | Flag the tile the guide points to | 4 | **Partial** | Code spotlights the whole inspect area (not the flag button); the player must first place a marker on the viewer and then flag the anomaly. The GDD sequence has no marker step. Hint rings reveal the answer on purpose. |
 | 5 | View result and why | 5 | **Done** | Verification panel is spotlighted; manual "File the report". |
 | 6 | Collect XP reward, see progress to Rank 2 | 6 | **Diverges** | Soft-lock: spotlight resolves to the HUD XP bar, which blocks "Collect reward"; no manual button (R1/G1). Needs playthrough. |
 | 7 | Confirm next level unlocked | 7 | **Done** | Case 2 node spotlighted; "Got it" or click the node. |
@@ -205,7 +205,7 @@ Consequences if changed: update `RANKS`, `DEMO_SAVE` (189 tiles), the Title butt
 | ID | GDD requirement | Status | Notes |
 |---|---|---|---|
 | §8.2-a | Tutorial uses a guaranteed-correct tile | **Done** | Barnard's Star (a deterministic mover). |
-| §8.2-b | Cannot skip ahead of the current step; can skip the whole tutorial any time | **Done** | Click-blockers + "Skip tutorial" link. |
+| §8.2-b | Cannot skip ahead of the current step; can skip the whole tutorial any time | **Diverges** | Click-blockers and "Skip tutorial" support the normal guided flow, but the guide also renders a visible 1–7 direct step-jump bar that can bypass the required actions. |
 | §8.2-c | Guide never blocks the colour-blind toggle | **Diverges** | `.guide-layer` (z 80) blockers cover the HUD (z 50) in all spotlight steps; the toggles are unreachable until the tutorial ends or is skipped. They *are* reachable on the Title screen, which precedes the tutorial. |
 | §8.2-d | Replayable from settings | **Done** | Settings → Replay. |
 
@@ -264,7 +264,7 @@ Also: `--rank-deep` in cb mode (`#9c6b00`) is a derived shade, not a palette col
 
 | ID | Criterion | Status | Why |
 |---|---|---|---|
-| §12-a | New player finishes tutorial and level 1 unaided | **Missing** (likely blocked) | Step 6 soft-lock (R1). Needs a playthrough to confirm. |
+| §12-a | New player finishes tutorial and level 1 unaided | **Missing** (blocked by known issue) | Step 6 can spotlight the HUD XP bar instead of the Debrief reward panel, blocking "Collect reward"; only "Skip tutorial" escapes (R1/G1). |
 | §12-b | One full chapter playable on real, registered SPHEREx data | **Missing** | Real DSS, not SPHEREx; chapter 1 has 4 of 10 cases. |
 | §12-c | Every flag returns a visible, correct verification result incl. rejections | **Done** (client-side) | "Correct" is defined by fixtures. |
 | §12-d | Three modes functional and reachable before login | **Done** | |

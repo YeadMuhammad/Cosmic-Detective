@@ -368,7 +368,8 @@ interface Props {
 |---|---|---|
 | `Starfield` | `density?: number` (default 1) | Fixed canvas; re-seeds on `density` change; honours reduced motion; reads `--star`. |
 | `RankEmblem` | `n`, `size?`, `glow?` | Gradient id `eg{n}` is **not unique per instance** — multiple emblems of the same rank share an id (works because the definition is identical). |
-| `XPBar` | `compact?` | Reads global state; carries `data-tut="xp"`. |
+| `XPBar` | `compact?` | Reads global state; carries `data-tut="xp"`. The HUD and Debrief
+  instances therefore currently duplicate the tutorial hook. |
 | `Chip` | `v: Verdict`, `small?` | Total over `Verdict`; each verdict has a distinct icon. |
 | `Btn` | `variant?: 'primary'\|'ghost'\|'danger'\|'ok'`, `onClick`, `disabled`, `className`, `...rest` | Plays hover/click sounds; `rest` is spread **after** handlers, so passing `onClick`/`onMouseEnter` via `rest` would override sound handling. |
 | `DisplayToggles` | – | Dark / light are mutually exclusive; colour-blind is an independent toggle. |
@@ -419,7 +420,12 @@ Rules:
   or (b) provide a `manual` button.** Steps 1–4 satisfy (a); steps 5 and 7 satisfy (b);
   step 6 currently satisfies neither (see §12 G1).
 - The guide re-measures every 250 ms and on resize and (capturing) scroll.
-- Only the owning screen may advance `state.tutorial`. `Guide` itself advances 5→6 and 7→done.
+- Normal tutorial progression is advanced by the owning screen: CaseScreen handles 1→5,
+  Debrief handles 6→7, and MapScreen handles 7→done when the case node is clicked.
+  Guide handles the manual Step 5 report action and the Step 7 "Got it" action.
+- The guide also exposes a visible 1–7 direct step-jump bar. Those controls can set
+  `state.tutorial` to any step and navigate to a hard-coded tutorial route
+  (`/case/1`, `/debrief/1`, or `/`); they bypass the normal action sequence.
 - Keyboard shortcuts in `CaseScreen` are disabled whenever `state.tutorial` is non-null.
 
 Hook inventory:
