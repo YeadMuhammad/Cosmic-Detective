@@ -61,7 +61,7 @@ is blocked by the known Step 6 spotlight bug.
 | §2-a | Real data first: "nothing generated or faked" | **Diverges** | Images and coordinates are real (DSS), but the weighted-consensus numbers are fabricated (`verify()`, R6/G13) and leaderboard/community figures are fixtures (labelled as demo in the UI). Real-vs-SPHEREx also open (§1-a). |
 | §2-b | Evidence before reward | **Partial** | XP only flows through a `Result`, which is good. But `verify()` and the answer key (`kind`, `a`, `b`) run in the browser, and rewards can be re-collected or collected without solving (R2, R3, R4). |
 | §2-c | Accessible to everyone | **Partial** | Three display modes, icon-per-status, reduced-motion handling. Marker placement is mouse-only (R11/G11) and the tutorial overlay covers the toggles (§8.2-c). |
-| §2-d | Mastery through progression | **Partial** | Tools gated by rank *and* chapter; lesson card shown before Difference Imaging. Rank 2 is not reachable through normal play (see §6.1). |
+| §2-d | Mastery through progression | **Partial** | Tools gated by rank *and* chapter; lesson card shown before Difference Imaging. Rank 2 is reached after fully reviewing Chapter 1 (see §6.1). |
 | §2-e | No false discoveries | **Done** | Verdict set has `known` and `candidate`, no "confirmed". Copy audited: "confirmed" appears in the Archive (as a rule being stated) and in a catalogue note about Lalande 21185's already-known planets. No "Planet X" anywhere in the files read. |
 
 ---
@@ -75,7 +75,7 @@ is blocked by the known Step 6 spotlight bug.
 | §3.1-a | One verified SPHEREx pair, months apart | **Missing** | DSS pair ~40 years apart. See "Data implications" below. |
 | §3.1-b | Briefing → scan → mandatory target → bonus | **Done** | `CaseScreen` phases; "File report" disabled until `solved`. |
 | §3.1-c | Blink Comparator + Difference Imaging | **Done** | `TileViewer` modes `blink`/`diff`; diff gated at rank ≥ 2 and chapter ≥ 2. |
-| §3.1-d | Rank 1 and Rank 2 | **Partial** | All five ranks exist, but the Rank 2 threshold is probably mis-set (§6.1). |
+| §3.1-d | Rank 1 and Rank 2 | **Partial** | All five ranks exist; Rank 2 uses a 120-tile threshold so a fully reviewed Chapter 1 can reach case 11 (§6.1). |
 | §3.1-e | Stationary check + known-object cross-match | **Partial** | Present and visible, but simulated client-side. The blend/halo check and consensus are also present (beyond first-build scope). |
 | §3.1-f | Dark, light, colour-blind modes + guided tutorial | **Done** | `DisplayToggles`, `data-theme`/`data-cb`, `Guide`. |
 
@@ -99,7 +99,7 @@ is blocked by the known Step 6 spotlight bug.
 | §4.1-b | Scan a batch of 10–15 tiles | **Done** | 12 tiles per case (`order()`), but always the same 12 (R10). |
 | §4.1-c | Mandatory target must be flagged to advance | **Done** | `solved` gates "File report"; Debrief marks case complete. Can be bypassed by direct URL (R4) and un-solved by a later wrong flag (R3). |
 | §4.1-d | Bonus inspection for XP, tools, rank | **Done** | Non-target results carry XP (15 / 60 / 10 / 5). |
-| §4.2-a | 50 levels in 5 chapters, a few minutes each | **Done** (structure) | Map shows 50 nodes in 5 chapters. Only 5 are authored (see §10.2). |
+| §4.2-a | 50 levels in 5 chapters, a few minutes each | **Done** (structure) | Map shows 50 nodes in 5 chapters. Chapter 1 is authored; later chapters remain staged. |
 
 ---
 
@@ -151,20 +151,18 @@ is blocked by the known Step 6 spotlight bug.
 | §6.1-a | Rank titles and level of unlock | **Done** | Titles and levels 1/11/21/31/41 match `RANKS`. |
 | §6.1-b | "Cumulative tiles reviewed" column | **Diverges** (probable) | See analysis below. |
 
-**Why the thresholds are probably wrong.** The GDD column reads 100–120 / 200–250 / 320–380 / 420–480 / 500+.
-The code uses `0 / 200 / 320 / 420 / 500`, i.e. it treats each row's number as the tiles needed to *reach*
-that rank. Test that against the rest of the GDD:
+The GDD column reads 100–120 / 200–250 / 320–380 / 420–480 / 500+. The implementation
+now uses `0 / 120 / 320 / 420 / 500`, treating each row's number as the tiles needed to
+*reach* that rank. Fully reviewing cases 1–10 contributes 120 tiles and reaches Rank 2,
+which lets the player open case 11.
 
 | Reading | Rank 2 (Level 11) | Rank 3 (Level 21) | Consistent with 10–15 tiles per level? |
 |---|---|---|---|
-| **A (code today):** value = tiles needed to enter the rank | 200–250 tiles | 320–380 tiles | **No.** Levels 1–10 hold only 100–150 tiles, so Rank 2 is unreachable by completing Chapter 1. |
-| **B:** value = cumulative tiles when the rank is *completed* | 100–120 tiles | 200–250 tiles | **Yes.** 10 levels × 10–12 ≈ 100–120; 20 levels ≈ 200–250; 50 levels ≈ "upward of five hundred" (§10.2). |
+| **Implementation:** value = tiles needed to enter the rank | 120 tiles | 320–380 tiles | **Yes.** Fully reviewing cases 1–10 contributes 120 tiles and reaches Rank 2. |
+| **GDD:** value = cumulative tiles when the rank is *completed* | 100–120 tiles | 200–250 tiles | **Yes.** Ten levels × 10–12 ≈ 100–120; 20 levels ≈ 200–250; 50 levels ≈ "upward of five hundred" (§10.2). |
 
-Reading B fits every other number in the GDD, so it is the likely intent. Under B the thresholds
-would be roughly **0 / 110 / 225 / 350 / 450** (range midpoints), with 500+ as the full-campaign total.
-That is a **proposal**, not a GDD value; the owner should pick exact numbers.
-Consequences if changed: update `RANKS`, `DEMO_SAVE` (189 tiles), the Title button label
-("11 tiles from promotion"), the Presenter "Unlock Chapter 2" helper, and the Rank ladder copy.
+The remaining higher-rank thresholds continue to follow the existing progression ladder and
+should be revisited when later chapters are authored.
 
 ### 6.2 Experience and unlocks
 
@@ -244,7 +242,7 @@ Also: `--rank-deep` in cb mode (`#9c6b00`) is a derived shade, not a palette col
 | §10.1-b | SPHEREx spectral mosaic tool for multi-band views | **Missing** | Dossier uses SkyView DSS / 2MASS / WISE as a stand-in. |
 | §10.1-c | SPHEREx spectrophotometry tool for light curves | **Missing** | |
 | §10.1-d | Public star/small-body catalogues for cross-match and the tutorial tile | **Partial** | Five star records hand-typed in fixtures. No small-body (asteroid/comet) records at all. |
-| §10.2-a | 50 levels × 10–15 tiles, 500+ distinct tiles reviewed | **Partial** | 5 of 50 levels authored (cases 1–4, 11); **12 distinct tiles total**, reused by every case. |
+| §10.2-a | 50 levels × 10–15 tiles, 500+ distinct tiles reviewed | **Partial** | 11 of 50 levels authored (cases 1–11); **12 distinct tiles total**, reused by every case. |
 | §10.3-a | Chapter 5 live, unreviewed real tiles | **Missing** | |
 
 ---

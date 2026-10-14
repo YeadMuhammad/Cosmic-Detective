@@ -97,14 +97,15 @@ interface Level   { n: number; chapter: number; title: string; briefing: string;
 | `nextRank(tiles)` | First rank with `rank.tiles > tiles`, or `undefined` at max. |
 | `TOOLS` | Each `chapter` ∈ 1..5. `TOOLS[1]` is assumed to be Difference Imaging by `CaseScreen`'s lesson card. |
 | `CHAPTERS` | Exactly 5; `CHAPTERS[n-1].n === n`; `tool` must be a valid `TOOLS[].id` (`MapScreen` uses `!`). |
-| `PLAYABLE` | Authored levels. `chapter === ceil(n/10)`. `target ∈ tiles ⊆ keys(TILES)`. Exactly one `tutorial: true` level (case 1) is assumed. |
+| `PLAYABLE` | Authored levels. `chapter === ceil(n/10)`. `target ∈ tiles ⊆ keys(TILES)`. Cases 1–10 author the full first chapter; exactly one `tutorial: true` level (case 1) is assumed. |
 | `getLevel(n)` | `PLAYABLE.find(l => l.n === n)`. |
 | `LEVEL_NAMES` | Titles for cases without a level; `MapScreen` uses `level.title ?? LEVEL_NAMES[n]`. Case numbers 1–50 should resolve to a title one way or the other. |
 | `order(target, seed)` | Deterministic: same inputs ⇒ same order. Output length = `keys(TILES).length` (currently 12), contains every tile exactly once, target at index `(seed*5) % 12`. |
 
 **Case number ⇄ chapter ⇄ rank mapping** (relied on in `levelState`, `MapScreen`):
 `chapter = ceil(n/10)`; chapter `c` requires `rankFor(tiles).n >= c`; node index
-`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`.
+`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`. Rank 2 is set to 120 reviewed tiles so a fully
+reviewed first chapter can continue directly to case 11.
 
 ### 2.3 Other fixtures
 
@@ -193,7 +194,7 @@ useGame(): {
 ### 3.3 Presets
 
 - `FRESH` — clean player.
-- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 189`, `correct 171`, `judged 182`, `known 3`, `artifacts 14`, `clears 121`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 109`, `correct 171`, `judged 182`, `known 3`, `artifacts 14`, `clears 121`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
 - Settings "Reset progress" preserves `theme`, `colorblind`, `presenter` and resets everything else to `FRESH` (so `sound` is reset to `true`).
 
 ---
@@ -318,7 +319,7 @@ Keyboard `D` and the toolbar button honour `tools.diff`.
 | Rank | Title | Tiles | Weight | First case |
 |---|---|---|---|---|
 | 1 | Learner | 0 | 1.0 | 1 |
-| 2 | Field Analyst | 200 | 1.4 | 11 |
+| 2 | Field Analyst | 120 | 1.4 | 11 |
 | 3 | Sky Inspector | 320 | 2.1 | 21 |
 | 4 | Deep Space Lead | 420 | 2.9 | 31 |
 | 5 | Master Investigator | 500 | 4.0 | 41 |
