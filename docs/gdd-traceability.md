@@ -41,7 +41,7 @@ has no requirement numbers). Use these IDs in tickets and in `PLAN.md`.
 
 **Headline:** the *experience* layer (client, tools 1–2, verification UI, tutorial, accessibility)
 is largely built. The *truth* layer is not: no SPHEREx data, no real verification, no real
-consensus, no server. One GDD §12 criterion is missing and two remain partial; tutorial
+consensus, no server. One GDD §12 criterion is missing and one remains partial; tutorial
 completion is blocked by the known Step 6 spotlight bug.
 
 ---

@@ -194,7 +194,8 @@ useGame(): {
 ### 3.3 Presets
 
 - `FRESH` — clean player.
-- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 89`, `correct 75`, `judged 82`, `known 3`, `artifacts 14`, `clears 65`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 89`, `correct 68`, `judged 89`, `known 3`, `artifacts 14`, `clears 65`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- Aggregate invariant: `tiles = judged`, `correct = known + clears`, and `known + artifacts + clears <= judged`.
 - Settings "Reset progress" preserves `theme`, `colorblind`, `presenter` and resets everything else to `FRESH` (so `sound` is reset to `true`).
 
 ---
