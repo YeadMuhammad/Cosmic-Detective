@@ -384,7 +384,7 @@ interface Props {
 | `Logo` | `big?` variant only. |
 | `HUD` | `route: string`; hidden on Title by `App`. `NAV` = Campaign `/map`, Rankings `/ranks`, Dossier `/dossier`, Mission `/archive`. |
 | `RankUp` | Visible while `state.rankUp` is truthy; clicking backdrop dismisses; "Continue" clears and navigates `/map`. Shows a tool-unlock block only when `TOOLS.find(t => t.chapter === n)` and a matching chapter exist (always for 1–5). Plays `sfx.rankUp()` on change. |
-| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP, preview rank-up (cycles up to 5), unlock chapter 2 (`completed=[1..10]`, `tiles ≥ 100`), start tutorial, reset to fresh (keeps presenter on). |
+| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP (also +25 judged/correct/clears), preview rank-up (cycles up to 5), unlock chapter 2 (marks cases 1–10 complete and grants tiles/judgements up to `RANKS[1].tiles`), start tutorial, reset to fresh (keeps presenter on). Presenter tile grants preserve the aggregate counter invariant. |
 
 ### 6.4 Screen contracts
 
