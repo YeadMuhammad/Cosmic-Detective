@@ -220,7 +220,7 @@ erDiagram
   1 `halo` (Vega), 1 `blend` (Albireo). `kind` is the ground truth the demo verifier uses.
   Movers carry `a`/`b` normalised pixel positions (÷512) and a `catalog` record.
 - **Ranks (5):** thresholds on *cumulative tiles reviewed*, not XP:
-  0 / 120 / 320 / 420 / 500, with consensus weights 1.0 / 1.4 / 2.1 / 2.9 / 4.0.
+  0 / 100 / 320 / 420 / 500, with consensus weights 1.0 / 1.4 / 2.1 / 2.9 / 4.0.
 - **Tools (5):** blink (ch1), diff (ch2), bands (ch3), lightcurve (ch4), suite (ch5).
   Only blink and diff are implemented in the case screen; bands exist as a preview on
   the Dossier; lightcurve and suite are placeholders.
@@ -327,8 +327,9 @@ flowchart TD
   E -- no --> locked
 ```
 
-Because each case contributes at most 12 tiles, completing and reviewing all ten chapter 1
-cases reaches the 120-tile Rank 2 threshold and opens case 11 without replaying cases.
+Because the tutorial sends a new player to debrief after its mandatory target, a normal run
+may collect only one tile from case 1. The 100-tile Rank 2 threshold is therefore reachable
+after reviewing cases 1–10 without replaying cases.
 
 ## 10. Tutorial engine
 
@@ -484,7 +485,7 @@ These are observations from the current code. Severity is a judgement call.
 | R9 | Persistence | Whole-state write on every change; shallow-merge hydration; no schema migration for `:v1`; `last` and `presenter` are persisted. | Stale/odd state after shape changes. |
 | R10 | Seeded order | `order()` inserts at `(seed*5) % 12` into an array that has 11 other items; fine, but every case reuses the same 12 tiles, so replays are fully predictable. | Content-depth limit. |
 | R11 | Marker a11y | Marker placement is mouse-only. | Blocks keyboard-only players. |
-| R12 | Hard-coded text | Season countdown ("ENDS IN 12D 04H"), the Title save button label ("11 tiles from promotion"), and `DEMO_SAVE` tiles (109) must be kept in sync with `RANKS[1].tiles` (120) by hand. | Silent drift. |
+| R12 | Hard-coded text | Season countdown ("ENDS IN 12D 04H"), the Title save button label ("11 tiles from promotion"), and `DEMO_SAVE` tiles (89) must be kept in sync with `RANKS[1].tiles` (100) by hand. | Silent drift. |
 | R13 | Dev images | `cdn()` hard-depends on Netlify's image path and `vite.config.ts` has no proxy for it. | Broken images under plain `npm run dev` (README's documented run command). |
 | R14 | Duplicate tile table | `scripts/fetch-sky.mjs` and `data/fixtures.ts` each hold id/RA/Dec/size. Changing one without the other produces plates that do not match the stated coordinates, and the mover `a`/`b` pixel positions would then be wrong. | Silent data corruption. |
 | R15 | Fetch script exit code | Failed downloads print `FAILED` but do not fail the process; the missing file only shows up as a broken image. | Easy to commit an incomplete set. |

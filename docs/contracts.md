@@ -104,8 +104,8 @@ interface Level   { n: number; chapter: number; title: string; briefing: string;
 
 **Case number ⇄ chapter ⇄ rank mapping** (relied on in `levelState`, `MapScreen`):
 `chapter = ceil(n/10)`; chapter `c` requires `rankFor(tiles).n >= c`; node index
-`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`. Rank 2 is set to 120 reviewed tiles so a fully
-reviewed first chapter can continue directly to case 11.
+`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`. Rank 2 is set to 100 reviewed
+tiles so the normal first-chapter path can continue directly to case 11.
 
 ### 2.3 Other fixtures
 
@@ -194,7 +194,7 @@ useGame(): {
 ### 3.3 Presets
 
 - `FRESH` — clean player.
-- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 109`, `correct 171`, `judged 182`, `known 3`, `artifacts 14`, `clears 121`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 89`, `correct 75`, `judged 82`, `known 3`, `artifacts 14`, `clears 65`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
 - Settings "Reset progress" preserves `theme`, `colorblind`, `presenter` and resets everything else to `FRESH` (so `sound` is reset to `true`).
 
 ---
@@ -319,7 +319,7 @@ Keyboard `D` and the toolbar button honour `tools.diff`.
 | Rank | Title | Tiles | Weight | First case |
 |---|---|---|---|---|
 | 1 | Learner | 0 | 1.0 | 1 |
-| 2 | Field Analyst | 120 | 1.4 | 11 |
+| 2 | Field Analyst | 100 | 1.4 | 11 |
 | 3 | Sky Inspector | 320 | 2.1 | 21 |
 | 4 | Deep Space Lead | 420 | 2.9 | 31 |
 | 5 | Master Investigator | 500 | 4.0 | 41 |
@@ -383,7 +383,7 @@ interface Props {
 | `Logo` | `big?` variant only. |
 | `HUD` | `route: string`; hidden on Title by `App`. `NAV` = Campaign `/map`, Rankings `/ranks`, Dossier `/dossier`, Mission `/archive`. |
 | `RankUp` | Visible while `state.rankUp` is truthy; clicking backdrop dismisses; "Continue" clears and navigates `/map`. Shows a tool-unlock block only when `TOOLS.find(t => t.chapter === n)` and a matching chapter exist (always for 1–5). Plays `sfx.rankUp()` on change. |
-| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP, preview rank-up (cycles up to 5), unlock chapter 2 (`completed=[1,2,3,4]`, `tiles ≥ 205`), start tutorial, reset to fresh (keeps presenter on). |
+| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP, preview rank-up (cycles up to 5), unlock chapter 2 (`completed=[1..10]`, `tiles ≥ 100`), start tutorial, reset to fresh (keeps presenter on). |
 
 ### 6.4 Screen contracts
 

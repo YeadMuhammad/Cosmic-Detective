@@ -37,12 +37,12 @@ has no requirement numbers). Use these IDs in tickets and in `PLAN.md`.
 | §9 Accessibility | 2 | 1 | 0 | 0 |
 | §10 Content | 0 | 2 | 0 | 4 |
 | §11 Systems | 1 | 0 | 0 | 3 |
-| §12 Success criteria | 3 | 0 | 0 | 2 |
+| §12 Success criteria | 3 | 1 | 0 | 1 |
 
 **Headline:** the *experience* layer (client, tools 1–2, verification UI, tutorial, accessibility)
 is largely built. The *truth* layer is not: no SPHEREx data, no real verification, no real
-consensus, no server. Two GDD §12 criteria are not met, and one of those (tutorial completion)
-is blocked by the known Step 6 spotlight bug.
+consensus, no server. One GDD §12 criterion is missing and two remain partial; tutorial
+completion is blocked by the known Step 6 spotlight bug.
 
 ---
 
@@ -61,7 +61,7 @@ is blocked by the known Step 6 spotlight bug.
 | §2-a | Real data first: "nothing generated or faked" | **Diverges** | Images and coordinates are real (DSS), but the weighted-consensus numbers are fabricated (`verify()`, R6/G13) and leaderboard/community figures are fixtures (labelled as demo in the UI). Real-vs-SPHEREx also open (§1-a). |
 | §2-b | Evidence before reward | **Partial** | XP only flows through a `Result`, which is good. But `verify()` and the answer key (`kind`, `a`, `b`) run in the browser, and rewards can be re-collected or collected without solving (R2, R3, R4). |
 | §2-c | Accessible to everyone | **Partial** | Three display modes, icon-per-status, reduced-motion handling. Marker placement is mouse-only (R11/G11) and the tutorial overlay covers the toggles (§8.2-c). |
-| §2-d | Mastery through progression | **Partial** | Tools gated by rank *and* chapter; lesson card shown before Difference Imaging. Rank 2 is reached after fully reviewing Chapter 1 (see §6.1). |
+| §2-d | Mastery through progression | **Partial** | Tools gated by rank *and* chapter; lesson card shown before Difference Imaging. Rank 2 is reachable on the normal Chapter 1 path (see §6.1). |
 | §2-e | No false discoveries | **Done** | Verdict set has `known` and `candidate`, no "confirmed". Copy audited: "confirmed" appears in the Archive (as a rule being stated) and in a catalogue note about Lalande 21185's already-known planets. No "Planet X" anywhere in the files read. |
 
 ---
@@ -75,7 +75,7 @@ is blocked by the known Step 6 spotlight bug.
 | §3.1-a | One verified SPHEREx pair, months apart | **Missing** | DSS pair ~40 years apart. See "Data implications" below. |
 | §3.1-b | Briefing → scan → mandatory target → bonus | **Done** | `CaseScreen` phases; "File report" disabled until `solved`. |
 | §3.1-c | Blink Comparator + Difference Imaging | **Done** | `TileViewer` modes `blink`/`diff`; diff gated at rank ≥ 2 and chapter ≥ 2. |
-| §3.1-d | Rank 1 and Rank 2 | **Partial** | All five ranks exist; Rank 2 uses a 120-tile threshold so a fully reviewed Chapter 1 can reach case 11 (§6.1). |
+| §3.1-d | Rank 1 and Rank 2 | **Partial** | All five ranks exist; Rank 2 uses a 100-tile threshold so the normal Chapter 1 path can reach case 11 (§6.1). |
 | §3.1-e | Stationary check + known-object cross-match | **Partial** | Present and visible, but simulated client-side. The blend/halo check and consensus are also present (beyond first-build scope). |
 | §3.1-f | Dark, light, colour-blind modes + guided tutorial | **Done** | `DisplayToggles`, `data-theme`/`data-cb`, `Guide`. |
 
@@ -152,13 +152,13 @@ is blocked by the known Step 6 spotlight bug.
 | §6.1-b | "Cumulative tiles reviewed" column | **Diverges** (probable) | See analysis below. |
 
 The GDD column reads 100–120 / 200–250 / 320–380 / 420–480 / 500+. The implementation
-now uses `0 / 120 / 320 / 420 / 500`, treating each row's number as the tiles needed to
-*reach* that rank. Fully reviewing cases 1–10 contributes 120 tiles and reaches Rank 2,
-which lets the player open case 11.
+now uses `0 / 100 / 320 / 420 / 500`, treating each row's number as the tiles needed to
+*reach* that rank. The normal path contributes 109 tiles across cases 1–10 (one tutorial
+tile plus nine full batches), which reaches Rank 2 and lets the player open case 11.
 
 | Reading | Rank 2 (Level 11) | Rank 3 (Level 21) | Consistent with 10–15 tiles per level? |
 |---|---|---|---|
-| **Implementation:** value = tiles needed to enter the rank | 120 tiles | 320–380 tiles | **Yes.** Fully reviewing cases 1–10 contributes 120 tiles and reaches Rank 2. |
+| **Implementation:** value = tiles needed to enter the rank | 100 tiles | 320–380 tiles | **Yes.** The normal cases 1–10 path contributes 109 tiles and reaches Rank 2. |
 | **GDD:** value = cumulative tiles when the rank is *completed* | 100–120 tiles | 200–250 tiles | **Yes.** Ten levels × 10–12 ≈ 100–120; 20 levels ≈ 200–250; 50 levels ≈ "upward of five hundred" (§10.2). |
 
 The remaining higher-rank thresholds continue to follow the existing progression ladder and
@@ -263,7 +263,7 @@ Also: `--rank-deep` in cb mode (`#9c6b00`) is a derived shade, not a palette col
 | ID | Criterion | Status | Why |
 |---|---|---|---|
 | §12-a | New player finishes tutorial and level 1 unaided | **Missing** (blocked by known issue) | Step 6 can spotlight the HUD XP bar instead of the Debrief reward panel, blocking "Collect reward"; only "Skip tutorial" escapes (R1/G1). |
-| §12-b | One full chapter playable on real, registered SPHEREx data | **Missing** | Real DSS, not SPHEREx; chapter 1 has 4 of 10 cases. |
+| §12-b | One full chapter playable on real, registered SPHEREx data | **Partial** | All 10 chapter 1 cases are playable, but the current data is real DSS rather than registered SPHEREx. |
 | §12-c | Every flag returns a visible, correct verification result incl. rejections | **Done** (client-side) | "Correct" is defined by fixtures. |
 | §12-d | Three modes functional and reachable before login | **Done** | |
 | §12-e | No text claims a confirmed discovery or names Planet X | **Done** | Verified by search of the files read; add a CI grep to keep it true (see §14). |
