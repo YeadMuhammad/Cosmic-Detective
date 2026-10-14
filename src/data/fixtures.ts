@@ -72,7 +72,7 @@ export const BARNARD_BANDS = [
 export interface Rank { n: number; title: string; tiles: number; weight: number; level: number }
 export const RANKS: Rank[] = [
   { n: 1, title: 'Learner', tiles: 0, weight: 1.0, level: 1 },
-  { n: 2, title: 'Field Analyst', tiles: 120, weight: 1.4, level: 11 },
+  { n: 2, title: 'Field Analyst', tiles: 100, weight: 1.4, level: 11 },
   { n: 3, title: 'Sky Inspector', tiles: 320, weight: 2.1, level: 21 },
   { n: 4, title: 'Deep Space Lead', tiles: 420, weight: 2.9, level: 31 },
   { n: 5, title: 'Master Investigator', tiles: 500, weight: 4.0, level: 41 },
