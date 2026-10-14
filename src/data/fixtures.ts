@@ -72,7 +72,7 @@ export const BARNARD_BANDS = [
 export interface Rank { n: number; title: string; tiles: number; weight: number; level: number }
 export const RANKS: Rank[] = [
   { n: 1, title: 'Learner', tiles: 0, weight: 1.0, level: 1 },
-  { n: 2, title: 'Field Analyst', tiles: 200, weight: 1.4, level: 11 },
+  { n: 2, title: 'Field Analyst', tiles: 120, weight: 1.4, level: 11 },
   { n: 3, title: 'Sky Inspector', tiles: 320, weight: 2.1, level: 21 },
   { n: 4, title: 'Deep Space Lead', tiles: 420, weight: 2.9, level: 31 },
   { n: 5, title: 'Master Investigator', tiles: 500, weight: 4.0, level: 41 },
@@ -129,6 +129,18 @@ export const PLAYABLE: Level[] = [
     briefing: 'The reviewers before you left a note: “something slid south.” Find the source that drifted, and rule out the impostors before you sign your name to it.' },
   { n: 4, chapter: 1, title: 'The Quiet Ember', target: 'vanmaanen2', tiles: order('vanmaanen2', 17),
     briefing: 'A dim source in Pisces. Its motion is small, only a few arcseconds a year, and it hides among faint neighbours. Look closely, then look again.' },
+  { n: 5, chapter: 1, title: 'Plate Noise', target: 'wolf359', tiles: order('wolf359', 19),
+    briefing: 'The plate scanner has marked a faint displacement in Leo. Compare both epochs carefully and separate a real nearby star from the noise of the old emulsion.' },
+  { n: 6, chapter: 1, title: 'Spikes and Shadows', target: 'groombridge1830', tiles: order('groombridge1830', 29),
+    briefing: 'Diffraction spikes and uneven exposure make this field look busier than it is. Blink the pair, then follow the source that actually changed position.' },
+  { n: 7, chapter: 1, title: 'The Faded Emulsion', target: 'lalande21185', tiles: order('lalande21185', 31),
+    briefing: 'A weak signal survives only as a smudge on the older plate. Use the second epoch as your anchor and confirm the motion before filing your report.' },
+  { n: 8, chapter: 1, title: 'Two Lights, One Star', target: 'vanmaanen2', tiles: order('vanmaanen2', 37),
+    briefing: 'Two apparent points of light compete for attention in this field. Check the blink carefully: only one position belongs to the moving source.' },
+  { n: 9, chapter: 1, title: 'A Crowd in Hercules', target: 'barnard', tiles: order('barnard', 41),
+    briefing: 'Crowding makes the old record difficult to read. Find the source that shifts between epochs, and leave the stationary neighbours unflagged.' },
+  { n: 10, chapter: 1, title: 'Graduation Night', target: 'wolf359', tiles: order('wolf359', 47),
+    briefing: 'This final training batch brings together every distraction you have learned to reject. Identify the genuine motion and earn your place on the next chapter.' },
   { n: 11, chapter: 2, title: 'The Phantom Orbit', target: 'wolf359', tiles: order('wolf359', 23),
     briefing: 'An anomalous signal near Leo. Blinking is not enough when the field is busy. Subtract one frame from the other, and let the static stars cancel themselves out.' },
 ]

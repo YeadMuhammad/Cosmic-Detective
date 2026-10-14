@@ -46,7 +46,7 @@ export const FRESH: GameState = {
 /** A pre-played save so a presentation can jump straight into a rank-up moment. */
 export const DEMO_SAVE = (s: GameState): GameState => ({
   ...s, callsign: s.callsign || 'Det. Nova Reyes', started: true,
-  xp: 5240, tiles: 189, correct: 171, judged: 182, known: 3, artifacts: 14, clears: 121,
+  xp: 5240, tiles: 109, correct: 171, judged: 182, known: 3, artifacts: 14, clears: 121,
   completed: [1, 2, 3], badges: ['first-flag', 'barnard', 'skeptic', 'artifact'], tutorial: null, tutorialDone: true,
   history: [
     { level: 3, title: "Lalande's Drift", xp: 210, tiles: 12, at: '2026-10-04' },
