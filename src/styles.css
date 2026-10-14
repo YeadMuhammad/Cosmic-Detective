@@ -252,7 +252,9 @@ kbd {
 .node.open .node-core { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 22%, var(--panel-solid)); color: var(--accent); box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 15%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 50%, transparent); animation: nodePulse 1.8s infinite; }
 @keyframes nodePulse { 50% { box-shadow: 0 0 0 12px color-mix(in srgb, var(--accent) 4%, transparent), 0 0 30px color-mix(in srgb, var(--accent) 60%, transparent); } }
 .node.done .node-core { background: var(--accent); border-color: var(--accent); color: #16110a; }
-.node.locked .node-core, .node.sealed .node-core { color: var(--muted); opacity: 0.65; }
+.node.locked .node-core { color: var(--muted); opacity: 0.65; }
+.node.sealed .node-core { color: var(--accent); border-style: dashed; opacity: 0.8; }
+.node.sealed .node-core > span { transform: rotate(-45deg); letter-spacing: 0.08em; }
 .node:hover .node-core { transform: rotate(45deg) scale(1.12); }
 .node-label { font-size: 12.5px; font-weight: 600; line-height: 1.2; text-align: left; opacity: 0; transform: translateY(-4px); transition: 0.15s; pointer-events: none; background: var(--panel-solid); border: 1px solid var(--line-strong); padding: 6px 8px; width: max-content; max-width: 170px; position: absolute; top: 58px; left: -6px; z-index: 3; }
 .node-label .mono { display: block; font-size: 9.5px; color: var(--accent); letter-spacing: 0.12em; }

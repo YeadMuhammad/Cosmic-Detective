@@ -93,10 +93,15 @@ export function Presenter() {
       <button className="presenter-tab mono" onClick={() => setOpen(!open)}>DEMO CONTROLS</button>
       {open && (
         <div className="presenter-body">
-          <button onClick={() => { set((p) => DEMO_SAVE(p)); navigate('/map') }}>Load demo save (189 tiles)</button>
-          <button onClick={() => award({ tiles: 25, xp: 400 })}>+25 tiles · +400 XP</button>
+          <button onClick={() => { set((p) => DEMO_SAVE(p)); navigate('/map') }}>Load demo save (89 tiles)</button>
+          <button onClick={() => award({ tiles: 25, judged: 25, correct: 25, clears: 25, xp: 400 })}>+25 tiles · +400 XP</button>
           <button onClick={() => set((p) => ({ ...p, rankUp: Math.min(5, (p.rankUp ?? 1) + 1) }))}>Preview rank-up</button>
-          <button onClick={() => { set((p) => ({ ...p, completed: [1, 2, 3, 4], tiles: Math.max(p.tiles, 205) })); navigate('/map') }}>Unlock Chapter 2</button>
+          <button onClick={() => {
+            set((p) => ({ ...p, completed: Array.from({ length: 10 }, (_, i) => i + 1) }))
+            const need = Math.max(0, RANKS[1].tiles - s.tiles)
+            if (need) award({ tiles: need, judged: need, correct: need, clears: need })
+            navigate('/map')
+          }}>Unlock Chapter 2</button>
           <button onClick={() => { set((p) => ({ ...p, tutorial: 1, started: true })); navigate('/case/1') }}>Start tutorial</button>
           <button onClick={() => { set(() => ({ ...FRESH, presenter: true })); navigate('/') }}>Reset to fresh player</button>
           <small className="mono">Shift+P hides this panel</small>

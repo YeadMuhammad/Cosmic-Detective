@@ -220,13 +220,14 @@ erDiagram
   1 `halo` (Vega), 1 `blend` (Albireo). `kind` is the ground truth the demo verifier uses.
   Movers carry `a`/`b` normalised pixel positions (÷512) and a `catalog` record.
 - **Ranks (5):** thresholds on *cumulative tiles reviewed*, not XP:
-  0 / 200 / 320 / 420 / 500, with consensus weights 1.0 / 1.4 / 2.1 / 2.9 / 4.0.
+  0 / 100 / 320 / 420 / 500, with consensus weights 1.0 / 1.4 / 2.1 / 2.9 / 4.0.
 - **Tools (5):** blink (ch1), diff (ch2), bands (ch3), lightcurve (ch4), suite (ch5).
   Only blink and diff are implemented in the case screen; bands exist as a preview on
   the Dossier; lightcurve and suite are placeholders.
-- **Chapters (5) × 10 cases = 50 case slots.** Only 5 cases are authored in `PLAYABLE`
-  (cases 1–4 and 11). The rest have names in `LEVEL_NAMES` and render as `sealed`
-  ("Tile pair in registration") or `locked`.
+- **Chapters (5) × 10 cases = 50 case slots.** Chapter 1 is fully authored in `PLAYABLE`
+  (cases 1–10), and case 11 starts chapter 2. The remaining cases have names in
+  `LEVEL_NAMES` and render as `sealed` ("Coming soon · tile pair in registration") or
+  `locked`.
 - **Level batches:** `order(target, seed)` builds a deterministic pseudo-random order of
   *all 12 tiles* with the target inserted at `(seed*5) % 12`. Every authored case therefore
   uses the same 12-tile pool in a different order.
@@ -326,10 +327,9 @@ flowchart TD
   E -- no --> locked
 ```
 
-Because each case contributes at most 12 tiles and rank 2 needs 200, **organic play of
-the authored content cannot reach Rank 2** without replaying cases or using the demo save.
-That is by design for a demo (the Presenter panel and Title "presentation save" exist for
-this), but worth remembering when judging balance.
+Because the tutorial sends a new player to debrief after its mandatory target, a normal run
+may collect only one tile from case 1. The 100-tile Rank 2 threshold is therefore reachable
+after reviewing cases 1–10 without replaying cases.
 
 ## 10. Tutorial engine
 
@@ -460,7 +460,7 @@ Proposed service interfaces are written up in `contracts.md` §9.
 | 4. Server verification | Planned | `verify()` in `CaseScreen.tsx` |
 | 5. Consensus & live leaderboards | Planned | `consensus()` inside `verify()`, `PLAYERS`, `COMMUNITY`, `Rankings.tsx` |
 | 6. Chapter 3–5 tools | Planned | `TOOLS`, `tools` map in `CaseScreen`, Dossier band preview |
-| 7. Author cases 5–50, Chapter 5 live tiles | Planned | `PLAYABLE`, `LEVEL_NAMES`, sealed-node state in `MapScreen` |
+| 7. Author cases 12–50, Chapter 5 live tiles | Planned | `PLAYABLE`, `LEVEL_NAMES`, sealed-node state in `MapScreen` |
 
 One consequence of item 2: tiles are currently **DSS optical plates** (two epochs ~40
 years apart). SPHEREx data will be spectral image pairs, so copy that is hard-coded to
@@ -485,7 +485,7 @@ These are observations from the current code. Severity is a judgement call.
 | R9 | Persistence | Whole-state write on every change; shallow-merge hydration; no schema migration for `:v1`; `last` and `presenter` are persisted. | Stale/odd state after shape changes. |
 | R10 | Seeded order | `order()` inserts at `(seed*5) % 12` into an array that has 11 other items; fine, but every case reuses the same 12 tiles, so replays are fully predictable. | Content-depth limit. |
 | R11 | Marker a11y | Marker placement is mouse-only. | Blocks keyboard-only players. |
-| R12 | Hard-coded text | Season countdown ("ENDS IN 12D 04H"), the Title save button label ("11 tiles from promotion"), and `DEMO_SAVE` tiles (189) must be kept in sync with `RANKS[1].tiles` (200) by hand. | Silent drift. |
+| R12 | Hard-coded text | Season countdown ("ENDS IN 12D 04H"), the Title save button label ("11 tiles from promotion"), and `DEMO_SAVE` tiles (89) must be kept in sync with `RANKS[1].tiles` (100) by hand. | Silent drift. |
 | R13 | Dev images | `cdn()` hard-depends on Netlify's image path and `vite.config.ts` has no proxy for it. | Broken images under plain `npm run dev` (README's documented run command). |
 | R14 | Duplicate tile table | `scripts/fetch-sky.mjs` and `data/fixtures.ts` each hold id/RA/Dec/size. Changing one without the other produces plates that do not match the stated coordinates, and the mover `a`/`b` pixel positions would then be wrong. | Silent data corruption. |
 | R15 | Fetch script exit code | Failed downloads print `FAILED` but do not fail the process; the missing file only shows up as a broken image. | Easy to commit an incomplete set. |
