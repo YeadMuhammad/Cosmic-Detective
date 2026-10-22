@@ -640,3 +640,366 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+
+/* ============================================================
+   CHAPTER 3 · Sector Map & Multi-Band Compositor
+   ============================================================ */
+.case-stats small { font-size: 13px; color: var(--muted); letter-spacing: 0; font-family: inherit; }
+.band-panel select, .band-panel input[type='range'] { accent-color: var(--accent); }
+.sector-map { width: 100%; background: var(--bg-2); border: 1px solid var(--line); display: block; }
+.sector-map line { stroke: var(--line); stroke-width: 0.6; }
+.sector-map .eq { stroke: var(--line-strong); fill: none; stroke-dasharray: 3 3; }
+.sector-map circle { fill: var(--muted); opacity: 0.55; cursor: not-allowed; }
+.sector-map g.live circle:not(.ring) { fill: var(--accent); opacity: 1; cursor: default; }
+.sector-map .ring { fill: none; stroke: var(--accent); stroke-width: 1.2; animation: pulse 1.4s infinite; }
+.sector-map text { font: 600 8px 'JetBrains Mono', monospace; fill: var(--accent); }
+.sector-map .ax { fill: var(--muted); font-weight: 400; }
+.band-list { display: flex; flex-direction: column; gap: 4px; }
+.band-row { display: flex; align-items: center; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--tint); padding: 7px 10px; text-align: left; color: var(--text); }
+.band-row:hover { border-color: var(--tint); }
+.band-row.on { background: color-mix(in srgb, var(--tint) 16%, var(--panel-2)); border-color: var(--tint); }
+.band-row i { width: 10px; height: 10px; border-radius: 50%; background: var(--tint); flex-shrink: 0; }
+.band-row span { flex: 1; display: flex; flex-direction: column; line-height: 1.25; font-size: 13px; }
+.band-row small { font-size: 10px; color: var(--muted); }
+.band-row em { font-style: normal; color: var(--muted); }
+.band-row em.det { color: var(--ok); }
+.mixer { display: flex; align-items: center; gap: 10px; font-size: 10.5px; color: var(--muted); letter-spacing: 0.12em; margin-top: 8px; }
+.mixer > span { min-width: 42px; font-weight: 700; }
+.mixer select { flex: 1; background: var(--bg-2); color: var(--text); border: 1px solid var(--line-strong); padding: 6px 8px; font: inherit; font-size: 12px; }
+.mixer input { flex: 1; }
+.mix-R { color: #ff6f5e; } .mix-G { color: #5fdc8b; } .mix-B { color: #6ea8ff; }
+.band-canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: auto; }
+.band-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; letter-spacing: 0.18em; z-index: 3; }
+.track-tag { position: absolute; transform: translateY(-50%); font-size: 10px; color: #fff; background: rgba(5, 8, 16, 0.78); padding: 1px 5px; border-left: 2px solid var(--known); pointer-events: none; }
+.profile { background: var(--panel); border: 1px solid var(--line); padding: 14px; }
+.spectrum { width: 100%; display: block; }
+.spectrum text { font: 9px 'JetBrains Mono', monospace; fill: var(--muted); }
+.spectrum .grid { stroke: var(--line); stroke-width: 0.6; }
+.spectrum .axis { stroke: var(--line-strong); }
+.spectrum .thr { stroke: var(--pending); stroke-width: 0.9; stroke-dasharray: 4 3; }
+.spectrum .thr-t { fill: var(--pending); font-size: 8px; }
+.spectrum .stem { stroke: var(--tint); stroke-width: 1.4; opacity: 0.7; }
+.spectrum .dot { fill: var(--bg-2); stroke: var(--tint); stroke-width: 1.6; }
+.spectrum .dot.det { fill: var(--tint); }
+.spectrum .curve { fill: none; stroke: var(--text); stroke-width: 1.2; opacity: 0.45; }
+.spectrum .bl { fill: var(--text); font-weight: 700; font-size: 10px; }
+.spectrum .wl { font-size: 8px; }
+.spectrum .empty { font-size: 11px; font-family: inherit; }
+.fine { font-size: 11.5px; margin: 8px 0 0; }
+
+/* ============================================================
+   CHAPTER 4 · Light Curve Analyzer
+   ============================================================ */
+.lc-thumb { background: var(--bg-2); }
+.spark { position: absolute; inset: 14% 6% 6%; width: 88%; height: 80%; }
+.spark polyline { fill: none; stroke: var(--accent); stroke-width: 2.2; vector-effect: non-scaling-stroke; stroke-linejoin: round; opacity: 0.9; }
+.lc-thumb.done .spark { opacity: 0.4; }
+.ledger-lc { width: 34px; height: 34px; color: var(--accent); background: var(--bg-2); padding: 4px; }
+.lc-chart { width: 100%; display: block; background: var(--bg-2); border: 1px solid var(--line-strong); }
+.lc-chart text { font: 9.5px 'JetBrains Mono', monospace; fill: var(--muted); }
+.lc-chart .axl { font-size: 10.5px; letter-spacing: 0.06em; }
+.lc-chart .grid { stroke: var(--line); stroke-width: 0.6; }
+.lc-chart .pt { fill: var(--known); opacity: 0.62; }
+.lc-chart .bin-line { fill: none; stroke: var(--rank); stroke-width: 2.2; stroke-linejoin: round; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--rank) 60%, transparent)); }
+.fold-panel { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); background: var(--panel-2); transition: opacity 0.2s; }
+.fold-panel.dim { opacity: 0.7; }
+.fold-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--muted); letter-spacing: 0.12em; }
+.fold-top b { font-size: 20px; color: var(--text); letter-spacing: 0; margin-right: auto; font-family: 'Big Shoulders Display'; }
+.fold-top button { background: var(--bg-2); border: 1px solid var(--line-strong); color: var(--text); padding: 4px 8px; font: 600 11px 'JetBrains Mono', monospace; }
+.fold-top button:hover { border-color: var(--accent); color: var(--accent); }
+.fold-panel input[type='range'] { width: 100%; margin: 10px 0 6px; accent-color: var(--accent); }
+.coh { display: flex; align-items: center; gap: 12px; font-size: 10.5px; color: var(--muted); letter-spacing: 0.12em; }
+.coh-bar { position: relative; flex: 1; height: 10px; background: var(--bg-2); border: 1px solid var(--line-strong); }
+.coh-bar i { position: absolute; inset: 0 auto 0 0; background: var(--info); transition: width 0.12s; }
+.coh-bar i.hit { background: var(--ok); box-shadow: 0 0 12px var(--ok); }
+.coh-bar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--pending); }
+.coh b { min-width: 118px; text-align: right; color: var(--text); letter-spacing: 0.06em; }
+.classify { margin-top: 12px; }
+.class-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.class-opt { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 9px 11px; background: var(--panel-2); border: 1px solid var(--line-strong); color: var(--text); }
+.class-opt b { font-size: 13px; }
+.class-opt small { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.class-opt:hover:not(:disabled) { border-color: var(--accent); }
+.class-opt.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--panel-2)); box-shadow: 0 0 0 1px var(--accent); }
+.class-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+.meta dd.sim { color: var(--pending); }
+@media (max-width: 1100px) { .class-grid { grid-template-columns: 1fr 1fr; } }
+
+
+
+
+/* ============================================================
+   POSTER-MODE TEAM DOSSIER STYLES (1920x1080 Optimized)
+   ============================================================ */
+.poster-mode {
+  max-width: 1720px;
+  margin: 0 auto;
+  padding: 10px 30px 20px;
+  min-height: calc(100vh - 75px);
+  display: flex;
+  flex-direction: column;
+}
+.poster-header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+.poster-title {
+  font-size: 76px;
+  letter-spacing: 0.32em;
+  color: #fbbf24;
+  margin: 0;
+  text-shadow: 0 0 45px rgba(251, 191, 36, 0.55);
+}
+
+.team-poster-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 90px;
+  align-items: center;
+  width: 100%;
+  flex: 1;
+  justify-content: center;
+  padding-bottom: 30px;
+}
+.team-row {
+  display: flex;
+  justify-content: center;
+  gap: 180px;
+  width: 100%;
+}
+
+.mag-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: rise 0.5s both;
+}
+
+/* Magnifying Glass Rotation (-7 degrees) */
+.mag-glass-wrapper {
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: rotate(-7deg);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.mag-glass-wrapper:hover {
+  transform: rotate(-7deg) scale(1.04);
+}
+
+/* Thicker Lens Border */
+.mag-lens {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  border: 11px solid var(--accent);
+  background: #090e1a;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 
+    0 12px 35px rgba(0, 0, 0, 0.7),
+    inset 0 0 25px rgba(0, 0, 0, 0.9),
+    0 0 18px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.mag-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: filter 0.8s ease, transform 0.8s ease;
+}
+.mag-photo.foggy {
+  filter: blur(18px) grayscale(0.95) brightness(0.25);
+  transform: scale(1.15);
+}
+.mag-photo.clear {
+  filter: blur(0) grayscale(0) brightness(1.05);
+  transform: rotate(7deg) scale(1);
+}
+
+/* Atmospheric Mist */
+.mag-fog {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 40% 40%, rgba(138, 151, 178, 0.45) 0%, rgba(13, 20, 38, 0.88) 60%, rgba(5, 8, 16, 0.99) 100%);
+  backdrop-filter: blur(8px);
+  opacity: 1;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  pointer-events: none;
+}
+.mag-fog.dispelled {
+  opacity: 0;
+  transform: scale(1.25);
+}
+.fog-layer-1, .fog-layer-2 {
+  position: absolute;
+  inset: -50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.14) 0%, transparent 70%);
+  animation: swirlFog 14s linear infinite;
+}
+.fog-layer-2 {
+  animation-duration: 20s;
+  animation-direction: reverse;
+  opacity: 0.6;
+}
+@keyframes swirlFog {
+  to { transform: rotate(360deg); }
+}
+.mag-glass-sheen {
+  position: absolute;
+  top: 10px;
+  left: 18px;
+  width: 65px;
+  height: 26px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.45), transparent);
+  border-radius: 50%;
+  transform: rotate(-35deg);
+  pointer-events: none;
+}
+
+/* Exterior Handle */
+.mag-handle-ref {
+  position: absolute;
+  bottom: -22px;
+  right: -22px;
+  width: 44px;
+  height: 22px;
+  background: var(--accent);
+  border-radius: 12px;
+  transform: rotate(45deg);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+  z-index: 5;
+}
+
+/* Nameplates & Connectors */
+.mag-info-card {
+  position: absolute;
+  width: 215px;
+  opacity: 0;
+  transform: scale(0.92);
+  pointer-events: none;
+  transition: opacity 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 20;
+}
+.mag-container.revealed .mag-info-card {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+
+/* Top-Mid Nameplate (Farhana) */
+.pos-top-mid .mag-info-card {
+  top: -75px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.92);
+  text-align: center;
+}
+.pos-top-mid.revealed .mag-info-card {
+  transform: translateX(-50%) scale(1);
+}
+.vert-connector {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.v-line {
+  width: 2px;
+  height: 18px;
+  box-shadow: 0 0 8px var(--accent);
+}
+.vert-connector .dot-node {
+  position: absolute;
+  bottom: -3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Left-Side Nameplates (Ashratul, Yead) */
+.pos-top-left .mag-info-card, .pos-bot-left .mag-info-card {
+  top: -45px;
+  right: 155px;
+}
+
+/* Right-Side Nameplates (Radit, Redwan) */
+.pos-top-right .mag-info-card, .pos-bot-right .mag-info-card {
+  top: -45px;
+  left: 155px;
+}
+
+/* Side Connector - Glued directly to the vertical side edge facing the magnifying glass */
+.side-connector {
+  position: absolute;
+  right: -45px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.side-connector.right {
+  right: auto;
+  left: -45px;
+  flex-direction: row-reverse;
+}
+.side-connector .arm-h {
+  width: 30px;
+  height: 2px;
+  box-shadow: 0 0 8px var(--accent);
+}
+.side-connector .arm-diag {
+  width: 15px;
+  height: 2px;
+  box-shadow: 0 0 8px var(--accent);
+  transform-origin: left center;
+  transform: rotate(75deg);
+  position: relative;
+}
+.side-connector.right .arm-diag {
+  transform-origin: right center;
+  transform: rotate(-80deg);
+}
+.side-connector.left .dot-node {
+  position: absolute;
+  right: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.side-connector.right .dot-node {
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.mag-details {
+  background: var(--panel-solid);
+  border: 1.5px solid var(--accent);
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+.member-name {
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: #fbbf24;
+  margin: 1px 0 2px;
+}
+.mag-designation {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}

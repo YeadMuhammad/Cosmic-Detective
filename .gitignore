@@ -1,6 +1,10 @@
 # Dependencies
 node_modules/
 
+# Helpers
+/full_codebase.txt
+/Code Base bundller.py
+
 # Build output
 dist/
 dist-ssr/

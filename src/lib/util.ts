@@ -5,7 +5,6 @@ export const cdn = (url: string, _w?: number) => {
   const cleanUrl = url.startsWith('/') ? url.slice(1) : url
   return `${base.endsWith('/') ? base : base + '/'}${cleanUrl}`
 }
-
 export function raStr(deg: number) {
   const h = deg / 15
   const hh = Math.floor(h)

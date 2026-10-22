@@ -1,5 +1,3 @@
-
-import { useEffect } from 'react'
 import { CHAPTERS, getLevel, LEVEL_NAMES, PLAYABLE, rankFor, RANKS, TOOLS } from '../data/fixtures'
 import { useGame } from '../lib/store'
 import { cdn, navigate } from '../lib/util'
@@ -7,13 +5,8 @@ import { sfx } from '../lib/sfx'
 
 export type NodeState = 'done' | 'open' | 'locked' | 'sealed'
 
-export function levelState(n: number, completed: number[], tiles: number, showcaseMode?: boolean): NodeState {
+export function levelState(n: number, completed: number[], tiles: number): NodeState {
   if (completed.includes(n)) return 'done'
-  
-  // Dev Mode Active: unlock every single level dynamically without altering real save data
-  if (showcaseMode) return 'open'
-
-  // Normal progression when Dev Mode is OFF
   const lvl = getLevel(n)
   const ch = Math.ceil(n / 10)
   if (rankFor(tiles).n < ch) return 'locked'
@@ -28,31 +21,10 @@ const NODE_POS = Array.from({ length: 10 }, (_, i) => [6 + i * 9.8, i % 2 ? 68 :
 export function MapScreen() {
   const { s, set } = useGame()
   const rank = rankFor(s.tiles)
-
-  const toggleDevMode = () => {
-    set((p) => ({
-      ...p,
-      showcaseMode: !p.showcaseMode,
-    }))
-  }
-
-  // Global keydown listener for Shift + D shortcut
-  useEffect(() => {
-    const on = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === 'INPUT') return
-      if (e.shiftKey && e.key.toLowerCase() === 'd') {
-        e.preventDefault()
-        toggleDevMode()
-      }
-    }
-    window.addEventListener('keydown', on)
-    return () => window.removeEventListener('keydown', on)
-  }, [])
-
-  const nextOpen = PLAYABLE.find((l) => levelState(l.n, s.completed, s.tiles, s.showcaseMode) === 'open')
+  const nextOpen = PLAYABLE.find((l) => levelState(l.n, s.completed, s.tiles) === 'open')
 
   const go = (n: number) => {
-    const st = levelState(n, s.completed, s.tiles, s.showcaseMode)
+    const st = levelState(n, s.completed, s.tiles)
     if (st === 'open' || st === 'done') {
       sfx.open()
       if (s.tutorial === 7) { set((p) => ({ ...p, tutorial: null, tutorialDone: true })); return }
@@ -64,9 +36,7 @@ export function MapScreen() {
     <div className="screen map-screen">
       <section className="map-head">
         <div>
-          <div className="mono kicker">
-            CAMPAIGN · 5 CHAPTERS · 50 CASES {s.showcaseMode && '⚡ [DEV UNLOCK ACTIVE]'}
-          </div>
+          <div className="mono kicker">CAMPAIGN · 5 CHAPTERS · 50 CASES</div>
           <h1 className="display">The Case Board</h1>
           <p className="lede">Each case is one batch of 10 to 15 real sky tiles. Solve the mandatory target to advance the story; inspect the rest for experience and rank.</p>
         </div>
@@ -81,8 +51,7 @@ export function MapScreen() {
 
       <div className="chapters">
         {CHAPTERS.map((ch) => {
-          // Unlocks all chapter cards dynamically when Dev Mode is active
-          const lockedCh = !s.showcaseMode && rank.n < ch.n
+          const lockedCh = rank.n < ch.n
           const tool = TOOLS.find((t) => t.id === ch.tool)!
           const done = s.completed.filter((n) => Math.ceil(n / 10) === ch.n).length
           return (
@@ -105,7 +74,7 @@ export function MapScreen() {
                 </svg>
                 {NODE_POS.map(([x, y], i) => {
                   const n = (ch.n - 1) * 10 + i + 1
-                  const st = levelState(n, s.completed, s.tiles, s.showcaseMode)
+                  const st = levelState(n, s.completed, s.tiles)
                   const lvl = getLevel(n)
                   const title = lvl?.title ?? LEVEL_NAMES[n]
                   return (

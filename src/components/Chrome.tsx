@@ -10,6 +10,7 @@ const NAV = [
   ['/ranks', 'Rankings'],
   ['/dossier', 'Dossier'],
   ['/archive', 'Mission'],
+  ['/team', 'The Team'],
 ] as const
 
 export function Logo({ big = false }: { big?: boolean }) {
@@ -102,6 +103,8 @@ export function Presenter() {
             if (need) award({ tiles: need, judged: need, correct: need, clears: need })
             navigate('/map')
           }}>Unlock Chapter 2</button>
+          <button onClick={() => { set((p) => ({ ...p, started: true, tutorialDone: true, completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], tiles: Math.max(p.tiles, 330) })); navigate('/map') }}>Unlock Chapter 3 (bands)</button>
+          <button onClick={() => { set((p) => ({ ...p, started: true, tutorialDone: true, completed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 21], tiles: Math.max(p.tiles, 430) })); navigate('/map') }}>Unlock Chapter 4 (light curves)</button>
           <button onClick={() => { set((p) => ({ ...p, tutorial: 1, started: true })); navigate('/case/1') }}>Start tutorial</button>
           <button onClick={() => { set(() => ({ ...FRESH, presenter: true })); navigate('/') }}>Reset to fresh player</button>
           <small className="mono">Shift+P hides this panel</small>
