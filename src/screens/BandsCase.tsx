@@ -155,7 +155,7 @@ export function BandsCase({ n }: { n: number }) {
   const mm = `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
   const active = runner.running ? runner.running.res : shown?.res ?? null
   const activeTrack = runner.running ? Number(runner.running.key.split('|')[1]) : shown?.track ?? -1
-  const tag = rgb.every((k) => k === rgb[0]) ? `${label(rgb[0]!)} · single band` : `R ${rgb[0] ? SHORT[rgb[0]] : '–'} · G ${rgb[1] ? SHORT[rgb[1]] : '–'} · B ${rgb[2] ? SHORT[rgb[2]] : '–'}`
+  const tag = rgb.every((k) => !k) ? 'All channels off' : rgb.every((k) => k === rgb[0]) ? `${label(rgb[0]!)} · single band` : `R ${rgb[0] ? SHORT[rgb[0]] : '–'} · G ${rgb[1] ? SHORT[rgb[1]] : '–'} · B ${rgb[2] ? SHORT[rgb[2]] : '–'}`
 
   return (
     <div className="screen case-screen" style={{ ['--accent' as any]: ch.accent }}>
