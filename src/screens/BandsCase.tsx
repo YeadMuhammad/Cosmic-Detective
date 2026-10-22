@@ -31,7 +31,7 @@ function verifyBands(m: Meas, repeat: boolean): { res: Result; track: number | n
   const track = BARNARD_TRACK.findIndex((p) => Math.hypot(p.pos[0] - m.x, p.pos[1] - m.y) <= 12)
   const coverage: Check = { name: 'Band coverage check', status: det.length ? 'pass' : 'fail', note: `Detected (S/N ≥ ${DET}) in: ${fmt(det)}. Not detected in: ${fmt(KEYS.filter((k) => !det.includes(k)))}.` }
 
-  if (track >= 0) {
+  if (track >= 0 && BARNARD_TRACK[track].bands.some((b) => det.includes(b))) {
     const p = BARNARD_TRACK[track]
     const own = p.bands.every((b) => det.includes(b))
     const others = KEYS.filter((k) => !p.bands.includes(k))
