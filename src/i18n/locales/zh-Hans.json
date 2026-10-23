@@ -1,0 +1,107 @@
+{
+  "lang": {
+    "label": "语言"
+  },
+  "case": {
+    "sealed_title": "案件档案已封存",
+    "sealed_body": "该案件尚未对你开放。完成之前的案件或提升等级即可解锁。",
+    "back_to_board": "返回案件板"
+  },
+  "ui": {
+    "abandon": "放弃",
+    "file_report": "提交报告"
+  },
+  "hud": {
+    "callsign": "呼号"
+  },
+  "rankup": {
+    "promotion": "PROMOTION · RANK {n}",
+    "consensus_weight": "您的评论现在携带共识权重 ×{weight.toFixed(1)}。解析タイル时所需的评论更少。",
+    "new_tool_unlocked": "NEW TOOL UNLOCKED",
+    "tool_name": "{tool.name}",
+    "chapter_open": "Chapter {ch.n}: {ch.title} 现在可用。您的第一个病例前将运行一个简短的指导课程。",
+    "continue": "Continue",
+    "confetti": "confetti"
+  },
+  "presenter": {
+    "demo_controls": "DEMO CONTROLS",
+    "load_demo": "Load demo save (89 tiles)",
+    "+25_tiles_+400_XP": "+25 tiles · +400 XP",
+    "preview_rank_up": "Preview rank-up",
+    "unlock_ch2": "Unlock Chapter 2",
+    "unlock_ch3": "Unlock Chapter 3 (bands)",
+    "unlock_ch4": "Unlock Chapter 4 (light curves)",
+    "start_tutorial": "Start tutorial",
+    "reset_fresh": "Reset to fresh player",
+    "shift_p_hides": "Shift+P hides this panel"
+  },
+  "title": {
+    "team_pleiades": "TEAM PLEIADES · CITIZEN SCIENCE PROGRAMME",
+    "detectives_on_shift": "{count} DETECTIVES ON SHIFT",
+    "sky_full_things": "The sky is full of things that moved when no one was looking.",
+    "inspect_real_nasa": "Inspect real NASA survey plates, catch what shifted, and send it through the same checks professional astronomers use.",
+    "badge_sign": "DETECTIVE CALLSIGN",
+    "sign_placeholder": "e.g. Det. Yead Muhammad",
+    "new_investigation": "New Investigation",
+    "resume_investigation": "Resume Investigation",
+    "how_works": "How the science works",
+    "community_totals": "Community totals (demo figures)",
+    "tiles_reviewed": "{count} tiles reviewed",
+    "known_objects": "{count} known objects matched",
+    "false_leads": "{count} false leads ruled out",
+    "candidates": "{count} candidates queued for professional follow-up",
+    "data_source": "Data: NASA SkyView · DSS · 2MASS · WISE · SPHEREx-ready pipeline",
+    "demo_data": "Community figures are demo data"
+  },
+  "toast": "Sign your badge on the title screen to save a callsign.",
+  "display": {
+    "kicker": "kicker"
+  },
+  "empty_state": {
+    "case_sealed": "案件档案已封存",
+    "not_open": "该案件尚未对你开放。完成之前的案件或提升等级即可解锁。",
+    "back_to_board": "返回案件板"
+  },
+  "band": {
+    "coverage": "Detected (S/N ≥ {{det}}) in: {{bands}}.",
+    "not_detected": "Not detected in: {{bands}}.",
+    "only_above": "Only {{det}} above the S/N {{threshold}} threshold. Nothing distinct enough to call a source.",
+    "no_counterpart": "No counterpart at this pixel in the other {{count}} bands. The {{label}} see it here and nowhere else.",
+    "faint_signal": "Faint signal in neighbouring bands; blended with another source.",
+    "position_across_epochs": "A point source with the same colour appears at {{count}} different positions across the surveys, {{arc}}″ end to end over ≈{{years}} years (≈{{rate}}″ per year). It is one object that moved.",
+    "catalog_match": "Matches {{name}} ({{alias}}). Proper motion {{pm}}.",
+    "spectral_shape": "Present at one position in {{det}} of 6 bands, including the optical plates. An ordinary stationary star: nothing hides below the red here.",
+    "counterpart_check": "Counterpart check",
+    "position_across_epochs_check": "Position across epochs",
+    "catalog_cross_match": "Catalog cross-match",
+    "spectral_shape_check": "Spectral shape check",
+    "sector_map": "SECTOR MAP",
+    "flag_anomaly": "Flag anomaly",
+    "case_notes": "CASE NOTES",
+    "sector_metadata": "SECTOR METADATA",
+    "empty": "Click a source to read it"
+  },
+  "lightcurve": {
+    "signal_detection": "Signal detection check",
+    "cycle_to_cycle": "Cycle-to-cycle check",
+    "outburst_check": "Outburst check",
+    "shape_check": "Shape check",
+    "source_check": "Source check",
+    "systematics_check": "Systematics check",
+    "catalog_cross_match": "Catalog cross-match",
+    "periodic": "Repeating signal",
+    "flare": "Outburst",
+    "glitch": "Instrument glitch",
+    "none": "Nothing here"
+  },
+  "pipeline": {
+    "check_radial": "Radial velocity check",
+    "check_photometry": "Photometry check",
+    "check_catalog": "Catalog cross-match"
+  },
+  "spectrum": {
+    "title": "Signal-to-noise per band",
+    "threshold": "detection S/N 5",
+    "empty": "Click a source to read it"
+  }
+}

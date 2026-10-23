@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { BARNARD_BANDS, BARNARD_TRACK, CHAPTERS, getLevel, GUIDE, LIVE_BAND_SECTORS, TILES } from '../data/fixtures'
 import { useGame, type CaseSummary } from '../lib/store'
+import { useTranslation } from 'react-i18next'
 import { cdn, decStr, navigate, raStr } from '../lib/util'
 import { sfx } from '../lib/sfx'
 import { compose, loadGray, peakMap, SIZE, snap, snr, stretchOf, type Stretch } from '../lib/photometry'
@@ -39,12 +40,12 @@ function verifyBands(m: Meas, repeat: boolean): { res: Result; track: number | n
     const first = BARNARD_TRACK[0], last = BARNARD_TRACK[3]
     const arc = Math.hypot(last.pos[0] - first.pos[0], last.pos[1] - first.pos[1]) * arcsecPx
     const rate = arc / (last.year - first.year)
-    const t = TILES.barnard.catalog!
+    const tile = TILES.barnard.catalog!
     const checks: Check[] = [
       coverage,
       { name: 'Counterpart check', status: own && clean ? 'pass' : 'info', note: clean ? `No counterpart at this pixel in the other ${others.length} bands. The ${p.label} see it here and nowhere else.` : 'Faint signal in neighbouring bands; blended with another source.' },
       { name: 'Position across epochs', status: 'pass', note: `A point source with the same colour appears at ${BARNARD_TRACK.length} different positions across the surveys, ${arc.toFixed(0)}″ end to end over ≈${last.year - first.year} years (≈${rate.toFixed(0)}″ per year). It is one object that moved.` },
-      { name: 'Catalog cross-match', status: 'info', note: `Matches ${t.name} (${t.alias}). Proper motion ${t.pm}.` },
+      { name: 'Catalog cross-match', status: 'info', note: `Matches ${tile.name} (${tile.alias}). Proper motion ${tile.pm}.` },
     ]
     return { track, res: { verdict: 'known', xp: track === TARGET || repeat ? 0 : 20, correct: true, checks } }
   }
@@ -59,6 +60,7 @@ function verifyBands(m: Meas, repeat: boolean): { res: Result; track: number | n
 }
 
 export function BandsCase({ n }: { n: number }) {
+  const { t } = useTranslation()
   const { s, set } = useGame()
   const level = getLevel(n)!
   const ch = CHAPTERS[level.chapter - 1]
@@ -141,16 +143,18 @@ export function BandsCase({ n }: { n: number }) {
     setLogged((l) => [...l, k]); setNote(`Logged. +5 XP (${logged.length + 1}/5)`); sfx.pass()
   }
 
-  if (!ok) return (
-    <div className="screen empty-state">
-      <h1 className="display">Case file sealed</h1>
-      <p>This case is not open to you yet. Clear earlier cases or earn a higher rank to unlock it.</p>
-      <Btn onClick={() => navigate('/map')}>Back to the case board</Btn>
-    </div>
-  )
+  if (!ok) {
+    return (
+      <div className="screen empty-state">
+        <h1 className="display">{t('case.sealed_title')}</h1>
+        <p>{t('case.sealed_body')}</p>
+        <Btn onClick={() => navigate('/map')}>{t('case.back_to_board')}</Btn>
+      </div>
+    )
+  }
 
-  const t = TILES.barnard
-  const sky = (x: number, y: number) => ({ ra: t.ra + (0.5 - x / SIZE) * t.size / Math.cos((t.dec * Math.PI) / 180), dec: t.dec + (0.5 - y / SIZE) * t.size })
+  const tile = TILES.barnard
+  const sky = (x: number, y: number) => ({ ra: tile.ra + (0.5 - x / SIZE) * tile.size / Math.cos((tile.dec * Math.PI) / 180), dec: tile.dec + (0.5 - y / SIZE) * tile.size })
   const c = sky(cursor?.[0] ?? SIZE / 2, cursor?.[1] ?? SIZE / 2)
   const mm = `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
   const active = runner.running ? runner.running.res : shown?.res ?? null
@@ -165,7 +169,7 @@ export function BandsCase({ n }: { n: number }) {
 
       <div className="case-grid">
         <aside className="tile-grid band-panel" aria-label="Sector map and bands">
-          <div className="panel-title mono">SECTOR MAP</div>
+          <div className="panel-title mono">{t('band.sector_map')}</div>
           <SectorMap note={setNote} />
           <div className="panel-title mono" style={{ marginTop: 18 }}>SPECTRAL BANDS</div>
           <div className="band-list">
@@ -216,14 +220,14 @@ export function BandsCase({ n }: { n: number }) {
             </div>
             <div className="viewer-foot mono">
               <span>RA {raStr(c.ra)}</span><span>DEC {decStr(c.dec)}</span>
-              <span>FOV {(t.size * 60).toFixed(0)}′ · {arcsecPx.toFixed(2)}″/px</span>
+              <span>FOV {(tile.size * 60).toFixed(0)}′ · {arcsecPx.toFixed(2)}″/px</span>
             </div>
           </div>
 
           <div className="action-bar">
             <div className="mono action-hint">{note || (marker ? `Source locked at pixel ${marker.x}, ${marker.y}. Log it, or flag it as the anomaly.` : 'Click a source. The marker snaps to the nearest peak and measures it in all six bands.')}</div>
             <Btn variant="ghost" disabled={!marker || !!runner.running} onClick={log}>Log source</Btn>
-            <Btn variant="danger" disabled={!marker || !!runner.running} onClick={flag} className="flag-btn">Flag anomaly</Btn>
+            <Btn variant="danger" disabled={!marker || !!runner.running} onClick={flag} className="flag-btn">{t('band.flag_anomaly')}</Btn>
           </div>
         </section>
 
@@ -234,7 +238,7 @@ export function BandsCase({ n }: { n: number }) {
               extra={active.verdict.startsWith('rejected') ? 'A dismissed lead is still progress. It is one less false signal for the professionals.' : activeTrack === TARGET ? 'It has no optical twin because it is not where it used to be. Same star, 57 years later. Keep this lesson: blink across epochs before you call something new.' : activeTrack >= 0 ? 'Same star again, caught at an earlier epoch.' : undefined} />
           ) : (
             <div className="briefing-mini">
-              <div className="panel-title mono">CASE NOTES</div>
+              <div className="panel-title mono">{t('band.case_notes')}</div>
               <p>{level.briefing}</p>
               <div className="guide-quote"><img src={cdn(GUIDE.img, 96)} alt="" /><span>“A cold thing hides in the red. Read the spectrum, not the picture.”</span></div>
             </div>
@@ -247,10 +251,10 @@ export function BandsCase({ n }: { n: number }) {
           </div>
 
           <dl className="meta">
-            <div className="panel-title mono">SECTOR METADATA</div>
-            <div><dt>Sector</dt><dd className="mono">{t.code}</dd></div>
-            <div><dt>Centre RA</dt><dd className="mono">{raStr(t.ra)}</dd></div>
-            <div><dt>Centre Dec</dt><dd className="mono">{decStr(t.dec)}</dd></div>
+            <div className="panel-title mono">{t('band.sector_metadata')}</div>
+            <div><dt>Sector</dt><dd className="mono">{tile.code}</dd></div>
+            <div><dt>Centre RA</dt><dd className="mono">{raStr(tile.ra)}</dd></div>
+            <div><dt>Centre Dec</dt><dd className="mono">{decStr(tile.dec)}</dd></div>
             <div><dt>Bands</dt><dd>DSS1 B · DSS2 R · 2MASS J, Ks · WISE W1, W2</dd></div>
             <div><dt>Span</dt><dd className="mono">0.45 – 4.6 µm</dd></div>
             <div><dt>Source</dt><dd>NASA SkyView · DSS, 2MASS, WISE · registered to one grid</dd></div>
@@ -317,7 +321,7 @@ function Spectrum({ m }: { m: Meas | null }) {
           </g>
         )
       })}
-      {!m && <text x={W / 2} y={70} textAnchor="middle" className="empty">Click a source to read it</text>}
+      {m && <text x={W / 2} y={70} textAnchor="middle" className="empty">Click a source to read it</text>}
     </svg>
   )
 }

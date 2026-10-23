@@ -599,6 +599,13 @@ kbd {
 .presenter-body small { font-size: 10px; color: var(--muted); }
 .toast { position: fixed; right: 16px; bottom: 16px; z-index: 40; background: var(--panel-solid); border: 1px solid var(--line-strong); padding: 8px 12px; font-size: 11.5px; color: var(--muted); }
 
+/* ---------------------------------------------------- i18n */
+.sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.lang-switch select { background:transparent; color:inherit; border:1px solid currentColor; border-radius:6px; padding:4px 8px; }
+/* font fallbacks so Bangla, Chinese and Arabic glyphs render (add Noto families via Google Fonts or self-host) */
+:lang(bn)      { font-family: 'Noto Sans Bengali', system-ui, sans-serif; }
+:lang(zh-Hans) { font-family: 'Noto Sans SC', system-ui, sans-serif; }
+:lang(ar)      { font-family: 'Noto Sans Arabic', system-ui, sans-serif; }
 /* ---------------------------------------------------- responsive */
 @media (max-width: 1280px) {
   .case-grid { grid-template-columns: 250px minmax(0, 1fr); }

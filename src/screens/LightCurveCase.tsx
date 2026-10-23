@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CHAPTERS, getLevel, GUIDE } from '../data/fixtures'
 import { CURVES, classOf, drift, excursions, fold, loadSeries, singleFrameHits, type CurveMeta, type Series, type SignalClass } from '../data/lightcurves'
 import { useGame, type CaseSummary } from '../lib/store'
@@ -53,6 +54,7 @@ function verifyCurve(m: CurveMeta, s: Series, cls: SignalClass, P: number, chapt
 }
 
 export function LightCurveCase({ n }: { n: number }) {
+  const { t } = useTranslation()
   const { s, set } = useGame()
   const level = getLevel(n)!
   const ch = CHAPTERS[level.chapter - 1]
@@ -121,13 +123,15 @@ export function LightCurveCase({ n }: { n: number }) {
     return () => window.removeEventListener('keydown', on)
   })
 
-  if (!ok) return (
-    <div className="screen empty-state">
-      <h1 className="display">Case file sealed</h1>
-      <p>This case is not open to you yet. Clear earlier cases or earn a higher rank to unlock it.</p>
-      <Btn onClick={() => navigate('/map')}>Back to the case board</Btn>
-    </div>
-  )
+  if (!ok) {
+    return (
+      <div className="screen empty-state">
+        <h1 className="display">{t('case.sealed_title')}</h1>
+        <p>{t('case.sealed_body')}</p>
+        <Btn onClick={() => navigate('/map')}>{t('case.back_to_board')}</Btn>
+      </div>
+    )
+  }
 
   const mm = `${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`
   const display = runner.running && runner.running.key === sel ? runner.running : null
