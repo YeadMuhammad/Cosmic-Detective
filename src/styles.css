@@ -609,11 +609,19 @@ kbd {
 :lang(zh-Hans) { font-family: 'Noto Sans SC', system-ui, sans-serif; }
 :lang(ar)      { font-family: 'Noto Sans Arabic', system-ui, sans-serif; }
 :lang(ar) {
-  /* Arabic text: plaintext unicode-bidi + start alignment without mirroring layout */
-  p, h1, h2, h3, h4, li, dt, dd, label, small, button,
-  .action-hint, .briefing,
+  /* Arabic text: plaintext unicode-bidi + start alignment without mirroring layout.
+     unicode-bidi is applied broadly (block AND inline text) so that the first
+     element holding Arabic script — which may be a <span>/<option>/<b> — reads
+     RTL via its own content, not by flipping any container. text-align:start is
+     limited to block-level text so flex/grid geometry is untouched. */
+  p, h1, h2, h3, h4, h5, h6, li, dt, dd, label, small, button, span, b, strong,
+  em, i, a, option, td, th, div, .action-hint, .briefing,
   .check .note, .toast {
     unicode-bidi: plaintext;
+  }
+  p, h1, h2, h3, h4, h5, h6, li, dt, dd, label, small, button,
+  .action-hint, .briefing,
+  .check .note, .toast {
     text-align: start;
   }
 }
