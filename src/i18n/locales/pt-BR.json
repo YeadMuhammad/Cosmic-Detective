@@ -1,0 +1,107 @@
+{
+  "lang": {
+    "label": "Idioma"
+  },
+  "case": {
+    "sealed_title": "Arquivo do caso lacrado",
+    "sealed_body": "Este caso ainda não está disponível para você. Conclua casos anteriores ou suba de nível para desbloqueá-lo.",
+    "back_to_board": "Voltar ao quadro de casos"
+  },
+  "ui": {
+    "abandon": "Abandonar",
+    "file_report": "Registrar relatório"
+  },
+  "hud": {
+    "callsign": "Indicativo"
+  },
+  "rankup": {
+    "promotion": "PROMOÇÃO · NÍVEL {{n}}",
+    "consensus_weight": "Suas análises agora têm um peso de consenso de ×{{weight}}. Menos análises são necessárias para resolver um ladrilho quando você está nele.",
+    "new_tool_unlocked": "NOVA FERRAMENTA DESBLOQUEADA",
+    "tool_name": "{{tool.name}}",
+    "chapter_open": "Capítulo {{ch.n}}: {{ch.title}} agora está aberto. Uma breve lição guiada acontece antes do seu primeiro caso.",
+    "continue": "Continuar",
+    "confetti": "confetes"
+  },
+  "presenter": {
+    "demo_controls": "CONTROLES DE DEMONSTRAÇÃO",
+    "load_demo": "Carregar jogo de demonstração (89 ladrilhos)",
+    "+25_tiles_+400_XP": "+25 ladrilhos · +400 XP",
+    "preview_rank_up": "Prévia de promoção",
+    "unlock_ch2": "Desbloquear Capítulo 2",
+    "unlock_ch3": "Desbloquear Capítulo 3 (bandas)",
+    "unlock_ch4": "Desbloquear Capítulo 4 (curvas de luz)",
+    "start_tutorial": "Iniciar tutorial",
+    "reset_fresh": "Redefinir para jogador novo",
+    "shift_p_hides": "Shift+P esconde este painel"
+  },
+  "title": {
+    "team_pleiades": "EQUIPE PLEIADES · PROGRAMA DE CIÊNCIA CIDADÃ",
+    "detectives_on_shift": "{{count}} DETETIVES EM SERVIÇO",
+    "sky_full_things": "O céu está cheio de coisas que se moveram quando ninguém estava olhando.",
+    "inspect_real_nasa": "Inspecione as placas de levantamento reais da NASA, capture o que se deslocou e envie pelas mesmas verificações que os astrônomos profissionais usam.",
+    "badge_sign": "INDICATIVO DO DETETIVE",
+    "sign_placeholder": "ex.: Det. Yead Muhammad",
+    "new_investigation": "Nova investigação",
+    "resume_investigation": "Retomar investigação",
+    "how_works": "Como a ciência funciona",
+    "community_totals": "Totais da comunidade (números de demonstração)",
+    "tiles_reviewed": "{{count}} ladrilhos revisados",
+    "known_objects": "{{count}} objetos conhecidos correspondidos",
+    "false_leads": "{{count}} pistas falsas descartadas",
+    "candidates": "{{count}} candidatos na fila para acompanhamento profissional",
+    "data_source": "Dados: NASA SkyView · DSS · 2MASS · WISE · pipeline compatível com SPHEREx",
+    "demo_data": "Os números da comunidade são dados de demonstração"
+  },
+  "toast": "Assine seu distintivo na tela de título para salvar um indicativo.",
+  "display": {
+    "kicker": "chamada"
+  },
+  "empty_state": {
+    "case_sealed": "Arquivo do caso lacrado",
+    "not_open": "Este caso ainda não está disponível para você. Conclua casos anteriores ou suba de nível para desbloqueá-lo.",
+    "back_to_board": "Voltar ao quadro de casos"
+  },
+  "band": {
+    "coverage": "Detectado (S/N ≥ {{det}}) em: {{bands}}.",
+    "not_detected": "Não detectado em: {{bands}}.",
+    "only_above": "Apenas {{det}} acima do limiar de S/N {{threshold}}. Nada distinto o suficiente para chamar de uma fonte.",
+    "no_counterpart": "Sem contrapartida neste pixel nas outras {{count}} bandas. O {{label}} vê isto aqui e em nenhum outro lugar.",
+    "faint_signal": "Sinal fraco nas bandas vizinhas; mesclado com outra fonte.",
+    "position_across_epochs": "Uma fonte pontual da mesma cor aparece em {{count}} posições diferentes nos levantamentos, {{arc}}″ de ponta a ponta em ≈{{years}} anos (≈{{rate}}″ por ano). É um único objeto que se moveu.",
+    "catalog_match": "Corresponde a {{name}} ({{alias}}). Movimento próprio {{pm}}.",
+    "spectral_shape": "Presente em uma posição em {{det}} das 6 bandas, incluindo as placas ópticas. Uma estrela comum e fixa: nada se esconde abaixo do vermelho aqui.",
+    "counterpart_check": "Verificação de contrapartida",
+    "position_across_epochs_check": "Posição através das épocas",
+    "catalog_cross_match": "Conferência cruzada de catálogo",
+    "spectral_shape_check": "Verificação de forma espectral",
+    "sector_map": "MAPA DE SETORES",
+    "flag_anomaly": "Marcar anomalia",
+    "case_notes": "NOTAS DO CASO",
+    "sector_metadata": "METADADOS DO SETOR",
+    "empty": "Clique em uma fonte para ler"
+  },
+  "lightcurve": {
+    "signal_detection": "Verificação de detecção de sinal",
+    "cycle_to_cycle": "Verificação de ciclo a ciclo",
+    "outburst_check": "Verificação de estouro",
+    "shape_check": "Verificação de forma",
+    "source_check": "Verificação de fonte",
+    "systematics_check": "Verificação de sistemáticas",
+    "catalog_cross_match": "Conferência cruzada de catálogo",
+    "periodic": "Sinal repetitivo",
+    "flare": "Estouro",
+    "glitch": "Falha do instrumento",
+    "none": "Nada aqui"
+  },
+  "pipeline": {
+    "check_radial": "Verificação de velocidade radial",
+    "check_photometry": "Verificação fotométrica",
+    "check_catalog": "Conferência cruzada de catálogo"
+  },
+  "spectrum": {
+    "title": "Relação sinal-ruído por banda",
+    "threshold": "detecção S/N 5",
+    "empty": "Clique em uma fonte para ler"
+  }
+}

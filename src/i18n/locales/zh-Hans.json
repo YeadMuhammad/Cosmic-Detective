@@ -1,0 +1,107 @@
+{
+  "lang": {
+    "label": "语言"
+  },
+  "case": {
+    "sealed_title": "案件档案已封存",
+    "sealed_body": "该案件尚未对你开放。完成之前的案件或提升等级即可解锁。",
+    "back_to_board": "返回案件板"
+  },
+  "ui": {
+    "abandon": "放弃",
+    "file_report": "提交报告"
+  },
+  "hud": {
+    "callsign": "呼号"
+  },
+  "rankup": {
+    "promotion": "晋升 · 等级 {{n}}",
+    "consensus_weight": "您的评审现在具有 {{weight}} 的共识权重。当您在某块图格上时，所需的评审更少即可判定。",
+    "new_tool_unlocked": "新工具已解锁",
+    "tool_name": "{{tool.name}}",
+    "chapter_open": "第 {{ch.n}} 章：{{ch.title}} 现已开放。在您的第一个案件之前会运行一段简短的引导课程。",
+    "continue": "继续",
+    "confetti": "彩纸"
+  },
+  "presenter": {
+    "demo_controls": "演示控制",
+    "load_demo": "加载演示存档（89 块图格）",
+    "+25_tiles_+400_XP": "+25 块图格 · +400 经验值",
+    "preview_rank_up": "预览升级",
+    "unlock_ch2": "解锁第 2 章",
+    "unlock_ch3": "解锁第 3 章（波段）",
+    "unlock_ch4": "解锁第 4 章（光变曲线）",
+    "start_tutorial": "开始教程",
+    "reset_fresh": "重置为新玩家",
+    "shift_p_hides": "Shift+P 隐藏此面板"
+  },
+  "title": {
+    "team_pleiades": "普勒阿得斯团队 · 公民科学计划",
+    "detectives_on_shift": "{{count}} 名探员在岗",
+    "sky_full_things": "天空中满是在无人注视时移动的物体。",
+    "inspect_real_nasa": "检查真实的 NASA 巡天底片，捕捉发生位移的天体，并通过专业天文学家使用的相同检验流程提交。",
+    "badge_sign": "探员呼号",
+    "sign_placeholder": "例如：探员 叶尔德·穆罕默德",
+    "new_investigation": "新调查",
+    "resume_investigation": "继续调查",
+    "how_works": "科学原理",
+    "community_totals": "社区总计（演示数据）",
+    "tiles_reviewed": "已审查 {{count}} 块图格",
+    "known_objects": "已匹配 {{count}} 个已知天体",
+    "false_leads": "已排除 {{count}} 条错误线索",
+    "candidates": "{{count}} 个候选体已排队等待专业跟进",
+    "data_source": "数据：NASA SkyView · DSS · 2MASS · WISE · 支持 SPHEREx 的处理流水线",
+    "demo_data": "社区数字为演示数据"
+  },
+  "toast": "在标题界面上签署您的呼号徽章以保存呼号。",
+  "display": {
+    "kicker": "眉题"
+  },
+  "empty_state": {
+    "case_sealed": "案件档案已封存",
+    "not_open": "该案件尚未对你开放。完成之前的案件或提升等级即可解锁。",
+    "back_to_board": "返回案件板"
+  },
+  "band": {
+    "coverage": "在以下波段探测到（信噪比 ≥ {{det}}）：{{bands}}。",
+    "not_detected": "以下波段未探测到：{{bands}}。",
+    "only_above": "仅 {{det}} 高于信噪比 {{threshold}} 阈值。没有足够清晰的信号可称为一个源。",
+    "no_counterpart": "在其他 {{count}} 个波段中，该像素处没有对应体。{{label}} 仅在此处看到它，别处没有。",
+    "faint_signal": "相邻波段中有微弱信号；与另一个源混叠。",
+    "position_across_epochs": "一个同色点源在巡天中出现在 {{count}} 个不同位置，首尾相距 {{arc}}″，历时约 {{years}} 年（约每年 {{rate}}″）。这是同一个移动的天体。",
+    "catalog_match": "与 {{name}}（{{alias}}）匹配。自行 {{pm}}。",
+    "spectral_shape": "在 6 个波段中的 {{det}} 个波段的同一位置出现，包括光学底片。一颗普通的恒星：红端以下没有隐藏任何东西。",
+    "counterpart_check": "对应体检验",
+    "position_across_epochs_check": "跨历元位置",
+    "catalog_cross_match": "星表交叉匹配",
+    "spectral_shape_check": "光谱形状检验",
+    "sector_map": "扇区图",
+    "flag_anomaly": "标记异常",
+    "case_notes": "案件备注",
+    "sector_metadata": "扇区元数据",
+    "empty": "点击一个源以读取"
+  },
+  "lightcurve": {
+    "signal_detection": "信号探测检验",
+    "cycle_to_cycle": "周期间检验",
+    "outburst_check": "爆发检验",
+    "shape_check": "形状检验",
+    "source_check": "源检验",
+    "systematics_check": "系统误差检验",
+    "catalog_cross_match": "星表交叉匹配",
+    "periodic": "重复信号",
+    "flare": "爆发",
+    "glitch": "仪器故障",
+    "none": "此处无信号"
+  },
+  "pipeline": {
+    "check_radial": "视向速度检验",
+    "check_photometry": "测光检验",
+    "check_catalog": "星表交叉匹配"
+  },
+  "spectrum": {
+    "title": "各波段信噪比",
+    "threshold": "探测信噪比 5",
+    "empty": "点击一个源以读取"
+  }
+}

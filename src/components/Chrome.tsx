@@ -4,6 +4,7 @@ import { DEMO_SAVE, FRESH, useGame } from '../lib/store'
 import { navigate } from '../lib/util'
 import { sfx } from '../lib/sfx'
 import { DisplayToggles, RankEmblem, XPBar } from './ui'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 const NAV = [
   ['/map', 'Campaign'],
@@ -41,6 +42,7 @@ export function HUD({ route }: { route: string }) {
         <div className="hud-callsign mono">{s.callsign || 'Unnamed detective'}</div>
         <XPBar compact />
         <DisplayToggles />
+        <LanguageSwitcher />
         <a href="#/settings" className="icon-btn" title="Settings" onClick={() => sfx.click()}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3.2" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" /></svg>
         </a>

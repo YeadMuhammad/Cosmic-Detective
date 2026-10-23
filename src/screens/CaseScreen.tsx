@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CHAPTERS, getLevel, GUIDE, rankFor, TILE_IMG, TILES, TOOLS, type Tile, type Verdict } from '../data/fixtures'
 import { useGame, type CaseSummary } from '../lib/store'
 import { cdn, decStr, navigate, raStr } from '../lib/util'
@@ -53,6 +54,7 @@ function verify(tile: Tile, marker: [number, number] | null, action: 'flag' | 'c
 }
 
 export function CaseScreen({ n }: { n: number }) {
+  const { t } = useTranslation()
   const { s, set } = useGame()
   const level = getLevel(n)
   const rank = rankFor(s.tiles)
@@ -107,12 +109,15 @@ export function CaseScreen({ n }: { n: number }) {
   const submit = (action: 'flag' | 'clear') => {
     if (!tile || !level || running) return
     if (action === 'flag' && !marker) { sfx.reject(); return }
-    action === 'flag' ? sfx.stamp() : sfx.click()
+    if (action === 'flag') sfx.stamp()
+    else sfx.click()
     const res = verify(tile, marker, action, chapter, rank.weight, tile.id === level.target)
     setRunning({ id: tile.id, res, shown: 0 })
     res.checks.forEach((c, i) => setTimeout(() => {
       setRunning((r) => r && { ...r, shown: i + 1 })
-      c.status === 'fail' ? sfx.reject() : c.status === 'pass' ? sfx.pass() : sfx.scan()
+      if (c.status === 'fail') sfx.reject()
+      else if (c.status === 'pass') sfx.pass()
+      else sfx.scan()
     }, 650 * (i + 1)))
     setTimeout(() => {
       // Bonus tiles are one-shot; the mandatory target may be retried until solved.
@@ -150,9 +155,9 @@ export function CaseScreen({ n }: { n: number }) {
   if (!level || !ok) {
     return (
       <div className="screen empty-state">
-        <h1 className="display">Case file sealed</h1>
-        <p>This case is not open to you yet. Clear earlier cases or earn a higher rank to unlock it.</p>
-        <Btn onClick={() => navigate('/map')}>Back to the case board</Btn>
+        <h1 className="display">{t('case.sealed_title')}</h1>
+        <p>{t('case.sealed_body')}</p>
+        <Btn onClick={() => navigate('/map')}>{t('case.back_to_board')}</Btn>
       </div>
     )
   }
@@ -180,8 +185,8 @@ export function CaseScreen({ n }: { n: number }) {
           <div><b>{mm}</b><span>ELAPSED</span></div>
         </div>
         <div className="case-actions">
-          <Btn variant="ghost" onClick={() => navigate('/map')}>Abandon</Btn>
-          <Btn variant="ok" disabled={!solved} onClick={() => { set((p) => ({ ...p, last: summary })); navigate(`/debrief/${n}`) }} title={solved ? '' : 'Solve the mandatory target first'}>File report</Btn>
+          <Btn variant="ghost" onClick={() => navigate('/map')}>{t('ui.abandon')}</Btn>
+          <Btn variant="ok" disabled={!solved} onClick={() => { set((p) => ({ ...p, last: summary })); navigate(`/debrief/${n}`) }} title={solved ? '' : t('ui.file_report')}>File report</Btn>
         </div>
       </div>
 

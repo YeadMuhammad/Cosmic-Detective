@@ -19,7 +19,9 @@ export function useRunner(onDone: (res: Result, key: string) => void) {
     setRunning({ key, res, shown: 0 })
     res.checks.forEach((c, i) => timers.current.push(window.setTimeout(() => {
       setRunning((r) => r && { ...r, shown: i + 1 })
-      c.status === 'fail' ? sfx.reject() : c.status === 'pass' ? sfx.pass() : sfx.scan()
+      if (c.status === 'fail') sfx.reject()
+      else if (c.status === 'pass') sfx.pass()
+      else sfx.scan()
     }, 650 * (i + 1))))
     timers.current.push(window.setTimeout(() => { cb.current(res, key); setRunning(null) }, 650 * (res.checks.length + 1)))
   }
