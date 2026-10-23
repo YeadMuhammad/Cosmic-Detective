@@ -321,7 +321,7 @@ function Spectrum({ m }: { m: Meas | null }) {
           </g>
         )
       })}
-      {m && <text x={W / 2} y={70} textAnchor="middle" className="empty">Click a source to read it</text>}
+      {!m && <text x={W / 2} y={70} textAnchor="middle" className="empty">Click a source to read it</text>}
     </svg>
   )
 }

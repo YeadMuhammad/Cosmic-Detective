@@ -39,11 +39,11 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false }, // React already escapes
 })
 
-/** Keep <html lang> and dir in sync (screen readers pick their voice from lang; Arabic needs rtl). */
+/** Keep <html lang> in sync (screen readers pick their voice from lang). */
 function applyDocumentLang(code: LangCode) {
   const l = LANGS.find((l) => l.code === code) ?? LANGS[0]
   document.documentElement.lang = l.code
-  document.documentElement.dir = l.dir
+  document.documentElement.dir = 'ltr'
   try { localStorage.setItem(STORAGE_KEY, l.code) } catch { /* ignore */ }
 }
 applyDocumentLang(i18n.language as LangCode)

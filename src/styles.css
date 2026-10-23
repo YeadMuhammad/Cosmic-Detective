@@ -601,11 +601,22 @@ kbd {
 
 /* ---------------------------------------------------- i18n */
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
-.lang-switch select { background:transparent; color:inherit; border:1px solid currentColor; border-radius:6px; padding:4px 8px; }
+.lang-switch select { background:var(--panel); color:var(--text); border:1px solid var(--line-strong); border-radius:6px; padding:4px 8px; color-scheme: dark; }
+.lang-switch select option { background:var(--panel); color:var(--text); border:none; padding:4px 8px; }
+.lang-switch select:focus-visible { outline: 2px solid var(--rank); outline-offset: 2px; }
 /* font fallbacks so Bangla, Chinese and Arabic glyphs render (add Noto families via Google Fonts or self-host) */
 :lang(bn)      { font-family: 'Noto Sans Bengali', system-ui, sans-serif; }
 :lang(zh-Hans) { font-family: 'Noto Sans SC', system-ui, sans-serif; }
 :lang(ar)      { font-family: 'Noto Sans Arabic', system-ui, sans-serif; }
+:lang(ar) {
+  /* Arabic text: plaintext unicode-bidi + start alignment without mirroring layout */
+  p, h1, h2, h3, h4, li, dt, dd, label, small, button,
+  .action-hint, .briefing,
+  .check .note, .toast {
+    unicode-bidi: plaintext;
+    text-align: start;
+  }
+}
 /* ---------------------------------------------------- responsive */
 @media (max-width: 1280px) {
   .case-grid { grid-template-columns: 250px minmax(0, 1fr); }

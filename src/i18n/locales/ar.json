@@ -75,11 +75,11 @@
     "position_across_epochs_check": "Position across epochs",
     "catalog_cross_match": "Catalog cross-match",
     "spectral_shape_check": "Spectral shape check",
-    "sector_map": "SECTOR MAP",
-    "flag_anomaly": "Flag anomaly",
-    "case_notes": "CASE NOTES",
-    "sector_metadata": "SECTOR METADATA",
-    "empty": "Click a source to read it"
+    "sector_map": "خريطة القطاع",
+    "flag_anomaly": "تمييز إشارة غير طبيعية",
+    "case_notes": "ملاحظات الحالة",
+    "sector_metadata": "بيانات القطاع",
+    "empty": "اضغط على مصدر للقراءة"
   },
   "lightcurve": {
     "signal_detection": "Signal detection check",

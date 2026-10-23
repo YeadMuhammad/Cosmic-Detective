@@ -75,11 +75,11 @@
     "position_across_epochs_check": "Position across epochs",
     "catalog_cross_match": "Catalog cross-match",
     "spectral_shape_check": "Spectral shape check",
-    "sector_map": "SECTOR MAP",
-    "flag_anomaly": "Flag anomaly",
-    "case_notes": "CASE NOTES",
-    "sector_metadata": "SECTOR METADATA",
-    "empty": "Click a source to read it"
+    "sector_map": "扇区图",
+    "flag_anomaly": "异常信号",
+    "case_notes": "案例备注",
+    "sector_metadata": "扇区元数据",
+    "empty": "点击源以阅读"
   },
   "lightcurve": {
     "signal_detection": "Signal detection check",

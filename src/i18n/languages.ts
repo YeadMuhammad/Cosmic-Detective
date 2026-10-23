@@ -16,12 +16,12 @@ export const STORAGE_KEY = 'cosmic-detective:lang'
 
 /** All supported languages with native names and text direction. */
 export const LANGS = [
-  { code: 'en', native: 'English', dir: 'ltr' },
-  { code: 'bn', native: 'বাংলা', dir: 'ltr' },
-  { code: 'zh-Hans', native: '简体中文', dir: 'ltr' },
-  { code: 'es-419', native: 'Español', dir: 'ltr' },
-  { code: 'pt-BR', native: 'Português', dir: 'ltr' },
-  { code: 'ar', native: 'العربية', dir: 'rtl' },
+  { code: 'en', native: 'English', textDir: 'ltr' },
+  { code: 'bn', native: 'বাংলা', textDir: 'ltr' },
+  { code: 'zh-Hans', native: '简体中文', textDir: 'ltr' },
+  { code: 'es-419', native: 'Español', textDir: 'ltr' },
+  { code: 'pt-BR', native: 'Português', textDir: 'ltr' },
+  { code: 'ar', native: 'العربية', textDir: 'ltr' },
 ] as const
 
 /**
