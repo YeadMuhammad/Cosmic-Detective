@@ -91,10 +91,7 @@ function contrastRatio(fg, bg) {
         continue
       }
 
-      // 1. Real browser errors must be empty for every language.
-      if (errors.length > 0) record(`${lang}: browser errors: ${errors.join(' | ')}`)
-
-      // 2. <html lang> and <html dir>.
+      // 1. <html lang> and <html dir>.
       const attrs = await page.evaluate(() => ({
         lang: document.documentElement.getAttribute('lang'),
         dir: document.documentElement.getAttribute('dir'),
@@ -102,7 +99,7 @@ function contrastRatio(fg, bg) {
       if (attrs.lang !== lang) record(`${lang}: <html lang> expected "${lang}", got "${attrs.lang}"`)
       if (attrs.dir !== 'ltr') record(`${lang}: <html dir> expected "ltr", got "${attrs.dir}"`)
 
-      // 3. #root must have rendered real content (>=1 child AND visible text).
+      // 2. #root must have rendered real content (>=1 child AND visible text).
       //    A timeout here is a recorded failure, not a crash.
       try {
         await page.waitForFunction(() => {
@@ -113,7 +110,7 @@ function contrastRatio(fg, bg) {
         record(`${lang}: #root did not render child elements with visible text within 15s`)
       }
 
-      // 4. Language <select> contrast (closed control + its options) in both themes.
+      // 3. Language <select> contrast (closed control + its options) in both themes.
       for (const theme of ['dark', 'light']) {
         await page.evaluate((th) => { document.documentElement.setAttribute('data-theme', th) }, theme)
 
@@ -122,7 +119,15 @@ function contrastRatio(fg, bg) {
             const m = String(str).match(/rgba?\(([^)]+)\)/)
             if (!m) return null
             const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number)
+            if (p.length >= 4 && p[3] === 0) return null
             return p.length >= 3 ? [p[0], p[1], p[2]] : null
+          }
+          const opaqueBackground = (el) => {
+            for (let current = el; current; current = current.parentElement) {
+              const bg = parse(getComputedStyle(current).backgroundColor)
+              if (bg) return bg
+            }
+            return null
           }
           const sel = document.querySelector('.lang-switch select')
           if (!sel) return null
@@ -131,7 +136,7 @@ function contrastRatio(fg, bg) {
           const ocs = opt ? getComputedStyle(opt) : null
           return {
             fg: parse(cs.color),
-            bg: parse(cs.backgroundColor),
+            bg: opaqueBackground(sel),
             border: parse(cs.borderTopColor),
             optFg: ocs ? parse(ocs.color) : null,
             optBg: ocs ? parse(ocs.backgroundColor) : null,
@@ -159,7 +164,7 @@ function contrastRatio(fg, bg) {
       }
       await page.evaluate(() => document.documentElement.removeAttribute('data-theme'))
 
-      // 5. Layout stability: record the left-to-right ORDER of nav, HUD dropdown
+      // 4. Layout stability: record the left-to-right ORDER of nav, HUD dropdown
       //    and the first/last case-grid columns so en and ar can be compared.
       const order = await page.evaluate(() => {
         const l = (sel) => {
@@ -176,12 +181,16 @@ function contrastRatio(fg, bg) {
           .filter(([, v]) => v !== null)
           .sort((a, b) => a[1] - b[1])
           .map(([k]) => k)
-          .join('>')
       })
+      const requiredOrderEntries = ['nav', 'dropdown', 'firstCol', 'lastCol']
+      const missingOrderEntries = requiredOrderEntries.filter((entry) => !order.includes(entry))
+      if (missingOrderEntries.length > 0) {
+        record(`${lang}: layout order missing ${missingOrderEntries.join(', ')}`)
+      }
       if (lang === 'en') enOrder = order
       if (lang === 'ar') arOrder = order
 
-      // 6. Arabic: the first element containing Arabic script must compute
+      // 5. Arabic: the first element containing Arabic script must compute
       //    unicode-bidi: plaintext. Run entirely inside the page.
       if (lang === 'ar') {
         const bidi = await page.evaluate(() => {
@@ -203,16 +212,22 @@ function contrastRatio(fg, bg) {
         }
       }
 
+      // 6. Real browser errors must include the complete language run.
+      if (errors.length > 0) record(`${lang}: browser errors: ${errors.join(' | ')}`)
+
       await context.close()
     }
 
     // Cross-language layout-order comparison (en must equal ar).
-    if (enOrder && arOrder) {
-      if (enOrder !== arOrder) {
-        record(`layout order differs: en [${enOrder}] vs ar [${arOrder}]`)
+    const requiredOrderEntries = ['nav', 'dropdown', 'firstCol', 'lastCol']
+    const hasCompleteOrder = (order) => order
+      && requiredOrderEntries.every((entry) => order.includes(entry))
+    if (hasCompleteOrder(enOrder) && hasCompleteOrder(arOrder)) {
+      if (enOrder.join('>') !== arOrder.join('>')) {
+        record(`layout order differs: en [${enOrder.join('>')}] vs ar [${arOrder.join('>')}]`)
       }
     } else {
-      record('could not compare layout order between en and ar (one was not captured)')
+      record('could not compare layout order between en and ar (one was incomplete)')
     }
   } catch (e) {
     record(`unexpected script error: ${e && e.stack ? e.stack : e}`)

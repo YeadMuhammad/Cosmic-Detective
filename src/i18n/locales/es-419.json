@@ -4,7 +4,7 @@
   },
   "case": {
     "sealed_title": "Expediente sellado",
-    "sealed_body": "Este caso aún no está disponible para ti. Resuelve casos anteriores o sube de rango para desbloquearlo.",
+    "sealed_body": "Este caso aún no está disponible para usted. Resuelva casos anteriores o suba de rango para desbloquearlo.",
     "back_to_board": "Volver al tablero de casos"
   },
   "ui": {
@@ -47,7 +47,7 @@
     "how_works": "Cómo funciona la ciencia",
     "community_totals": "Totales de la comunidad (cifras de demostración)",
     "tiles_reviewed": "{{count}} mosaicos revisados",
-    "known_objects": "{{count}} objetos conocidos coincididos",
+    "known_objects": "{{count}} objetos conocidos coincidentes",
     "false_leads": "{{count}} pistas falsas descartadas",
     "candidates": "{{count}} candidatos en cola para seguimiento profesional",
     "data_source": "Datos: NASA SkyView · DSS · 2MASS · WISE · pipeline compatible con SPHEREx",

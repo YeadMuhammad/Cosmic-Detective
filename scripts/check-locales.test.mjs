@@ -214,6 +214,19 @@ test('checkLocale --strict: identical-to-English flagged, pure placeholders exem
   assert.ok(problems.some((p) => p.includes('word')))
 })
 
+test('checkLocale: plural keys are checked by checkPlurals, not key parity', () => {
+  const base = new Map([
+    ['items_one', 'one item'],
+    ['items_other', 'many items'],
+  ])
+  const loc = new Map([
+    ['items_one', 'un item'],
+    ['items_other', 'plusieurs items'],
+  ])
+  const problems = checkLocale(base, loc, 'fr', emptyAllow)
+  assert.equal(problems.filter((p) => p.startsWith('missing ') || p.startsWith('extra key ')).length, 0)
+})
+
 // Plural coverage: an Arabic group with only _one/_other is missing many/few/zero/two.
 test('checkPlurals: Arabic group missing _many/_few/_zero/_two fails', () => {
   const loc = new Map([
@@ -245,4 +258,13 @@ test('checkPlurals: locale plural group absent from en is flagged', () => {
   ])
   const problems = checkPlurals(new Map(), loc, 'en')
   assert.ok(problems.some((p) => p.includes('but not in en')))
+})
+
+test('checkPlurals: base plural group absent from locale is flagged', () => {
+  const base = new Map([
+    ['items_one', 'one'],
+    ['items_other', 'many'],
+  ])
+  const problems = checkPlurals(base, new Map(), 'en')
+  assert.ok(problems.some((p) => p.includes('present in en but absent from en')))
 })

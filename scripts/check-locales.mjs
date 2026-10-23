@@ -215,9 +215,11 @@ export function pluralGroups(keys) {
  */
 export function checkLocale(base, loc, code, allowlist, { strict = false } = {}) {
   const problems = []
+  const isPluralKey = (key) => PLURAL_SUFFIXES.some((suffix) => key.endsWith(`_${suffix}`))
 
   // Missing / extra keys.
   for (const [k, v] of base) {
+    if (isPluralKey(k)) continue
     if (!loc.has(k)) { problems.push(`missing ${k}`); continue }
     const lv = loc.get(k)
 
@@ -261,7 +263,9 @@ export function checkLocale(base, loc, code, allowlist, { strict = false } = {})
       problems.push(`untranslated (identical to en) in ${k}: ${lv}`)
     }
   }
-  for (const k of loc.keys()) if (!base.has(k)) problems.push(`extra key ${k}`)
+  for (const k of loc.keys()) {
+    if (!isPluralKey(k) && !base.has(k)) problems.push(`extra key ${k}`)
+  }
 
   // Plural category coverage (both base groups and this locale's groups).
   problems.push(...checkPlurals(base, loc, code))
@@ -293,6 +297,9 @@ export function checkPlurals(base, loc, code) {
   // The base must define the same plural groups the locale does.
   for (const base2 of locGroups.keys()) {
     if (!baseGroups.has(base2)) problems.push(`plural group "${base2}" present in ${code} but not in en`)
+  }
+  for (const base2 of baseGroups.keys()) {
+    if (!locGroups.has(base2)) problems.push(`plural group "${base2}" present in en but absent from ${code}`)
   }
   return problems
 }
