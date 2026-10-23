@@ -39,14 +39,16 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false }, // React already escapes
 })
 
-/** Keep <html lang> in sync (screen readers pick their voice from lang). */
+/** Keep <html lang> in sync without changing the LTR page layout. */
 function applyDocumentLang(code: LangCode) {
   const l = LANGS.find((l) => l.code === code) ?? LANGS[0]
   document.documentElement.lang = l.code
   document.documentElement.dir = 'ltr'
-  try { localStorage.setItem(STORAGE_KEY, l.code) } catch { /* ignore */ }
 }
 applyDocumentLang(i18n.language as LangCode)
-i18n.on('languageChanged', (code: string) => applyDocumentLang(code as LangCode))
+i18n.on('languageChanged', (code: string) => {
+  applyDocumentLang(code as LangCode)
+  try { localStorage.setItem(STORAGE_KEY, code) } catch { /* ignore */ }
+})
 
 export default i18n

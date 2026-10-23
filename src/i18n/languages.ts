@@ -1,8 +1,7 @@
 /**
  * Language definitions and initialisation logic for i18next.
- * Keeps <html lang> and document.dir in sync for screen readers (Arabic needs rtl).
- *
- * @typeParam LangCode - string literal union of supported language codes
+ * Keeps the document language in sync for screen readers. Layout stays LTR;
+ * textDir is only used for individual language options.
  */
 
 /** Language code union type. */
@@ -21,7 +20,7 @@ export const LANGS = [
   { code: 'zh-Hans', native: '简体中文', textDir: 'ltr' },
   { code: 'es-419', native: 'Español', textDir: 'ltr' },
   { code: 'pt-BR', native: 'Português', textDir: 'ltr' },
-  { code: 'ar', native: 'العربية', textDir: 'ltr' },
+  { code: 'ar', native: 'العربية', textDir: 'rtl' },
 ] as const
 
 /**
@@ -33,7 +32,8 @@ export const LANGS = [
 export function resolveInitialLang(): LangCode {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'en' || saved === 'bn' || saved === 'zh-Hans' || saved === 'es-419' || saved === 'pt-BR' || saved === 'ar') return saved as LangCode
+    const savedLang = LANGS.find((lang) => lang.code === saved)
+    if (savedLang) return savedLang.code
   } catch { /* storage unavailable */ }
   const nav = (typeof navigator !== 'undefined' ? navigator.language : 'en').toLowerCase()
   if (nav.startsWith('bn')) return 'bn'
