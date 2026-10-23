@@ -109,12 +109,15 @@ export function CaseScreen({ n }: { n: number }) {
   const submit = (action: 'flag' | 'clear') => {
     if (!tile || !level || running) return
     if (action === 'flag' && !marker) { sfx.reject(); return }
-    action === 'flag' ? sfx.stamp() : sfx.click()
+    if (action === 'flag') sfx.stamp()
+    else sfx.click()
     const res = verify(tile, marker, action, chapter, rank.weight, tile.id === level.target)
     setRunning({ id: tile.id, res, shown: 0 })
     res.checks.forEach((c, i) => setTimeout(() => {
       setRunning((r) => r && { ...r, shown: i + 1 })
-      c.status === 'fail' ? sfx.reject() : c.status === 'pass' ? sfx.pass() : sfx.scan()
+      if (c.status === 'fail') sfx.reject()
+      else if (c.status === 'pass') sfx.pass()
+      else sfx.scan()
     }, 650 * (i + 1)))
     setTimeout(() => {
       // Bonus tiles are one-shot; the mandatory target may be retried until solved.

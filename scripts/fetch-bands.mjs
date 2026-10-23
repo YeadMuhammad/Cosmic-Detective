@@ -23,8 +23,3 @@ if (failed.length) {
   console.error(`Incomplete band set for ${id}: missing ${failed.join(', ')}. Do not add it to LIVE_BAND_SECTORS; re-run the script.`)
   process.exit(1)
 }
-  const q = new URLSearchParams({ Position: `${ra},${dec}`, Survey: survey, Pixels: '512', Size: size, Scaling: 'Log', Return: 'JPEG' })
-  const res = await fetch(`${BASE}?${q}`, { signal: AbortSignal.timeout(150000) })
-  const buf = Buffer.from(await res.arrayBuffer())
-  if (res.ok && buf.length > 3000) { await writeFile(new URL(`../public/sky/${id}-${b}.jpg`, import.meta.url), buf); console.log('ok', id, b, buf.length) } else console.log('FAILED', id, b, res.status)
-}

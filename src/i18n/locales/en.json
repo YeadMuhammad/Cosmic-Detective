@@ -15,11 +15,11 @@
     "callsign": "Callsign"
   },
   "rankup": {
-    "promotion": "PROMOTION · RANK {n}",
-    "consensus_weight": "Your reviews now carry a consensus weight of ×{weight.toFixed(1)}. Fewer reviews are needed to resolve a tile when you are on it.",
+    "promotion": "PROMOTION · RANK {{n}}",
+    "consensus_weight": "Your reviews now carry a consensus weight of ×{{weight}}. Fewer reviews are needed to resolve a tile when you are on it.",
     "new_tool_unlocked": "NEW TOOL UNLOCKED",
-    "tool_name": "{tool.name}",
-    "chapter_open": "Chapter {ch.n}: {ch.title} is now open. A short guided lesson runs before your first case.",
+    "tool_name": "{{tool.name}}",
+    "chapter_open": "Chapter {{ch.n}}: {{ch.title}} is now open. A short guided lesson runs before your first case.",
     "continue": "Continue",
     "confetti": "confetti"
   },
@@ -37,7 +37,7 @@
   },
   "title": {
     "team_pleiades": "TEAM PLEIADES · CITIZEN SCIENCE PROGRAMME",
-    "detectives_on_shift": "{count} DETECTIVES ON SHIFT",
+    "detectives_on_shift": "{{count}} DETECTIVES ON SHIFT",
     "sky_full_things": "The sky is full of things that moved when no one was looking.",
     "inspect_real_nasa": "Inspect real NASA survey plates, catch what shifted, and send it through the same checks professional astronomers use.",
     "badge_sign": "DETECTIVE CALLSIGN",
@@ -46,10 +46,10 @@
     "resume_investigation": "Resume Investigation",
     "how_works": "How the science works",
     "community_totals": "Community totals (demo figures)",
-    "tiles_reviewed": "{count} tiles reviewed",
-    "known_objects": "{count} known objects matched",
-    "false_leads": "{count} false leads ruled out",
-    "candidates": "{count} candidates queued for professional follow-up",
+    "tiles_reviewed": "{{count}} tiles reviewed",
+    "known_objects": "{{count}} known objects matched",
+    "false_leads": "{{count}} false leads ruled out",
+    "candidates": "{{count}} candidates queued for professional follow-up",
     "data_source": "Data: NASA SkyView · DSS · 2MASS · WISE · SPHEREx-ready pipeline",
     "demo_data": "Community figures are demo data"
   },
