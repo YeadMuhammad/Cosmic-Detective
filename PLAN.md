@@ -5,5 +5,5 @@
 3. **Player accounts and progress.** Netlify Identity sign-in; move progress from localStorage to Netlify Database.
 4. **Verification service.** Server-side stationary, blend/halo and catalogue cross-match checks.
 5. **Consensus and live leaderboards.** Weighted agreement per Section 5.4; replace demo players.
-6. **Chapters 3–5 tools.** Multi-band compositor with sector map, light curve analyzer, full research suite with candidate export.
+6. **Chapters 3–5 tools.** Chapter 3 Multi-band compositor with sector map (case 21, real DSS/2MASS/WISE Barnard's Star sector) and Chapter 4 Light Curve Analyzer (case 31, modelled curves; import real photometry with `scripts/import-lightcurve.mjs`) are in. Remaining: more registered sectors (`scripts/fetch-bands.mjs`), real archival curves, and the Chapter 5 research suite with candidate export.
 7. **Authoring the remaining cases** (levels 5–50) and Chapter 5 live tiles.

@@ -154,7 +154,7 @@ Writing should read like a measured field report, not a tabloid headline. A tile
 
 ## **8.1 Guided tutorial sequence**
 
-A new player is introduced to the game by a guide character who highlights one interface element at a time and requires a real action before continuing, similar to the mentor style seen in many mobile strategy games. The player cannot skip ahead of the current step, but can skip the tutorial as a whole from a visible control at any time.
+A new player is introduced to the game by a guide character who highlights one interface element at a time and requires a real action before continuing, similar to the mentor style seen in many mobile strategy games. In the normal guided flow, the player cannot skip ahead of the current step, but can skip the tutorial as a whole from a visible control at any time. The current implementation also exposes a visible 1–7 direct step-jump bar for presenter/debug use, which can bypass those actions.
 
 | Step | Guide highlights | Player must do |
 | :---- | :---- | :---- |

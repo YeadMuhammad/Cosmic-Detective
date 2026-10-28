@@ -120,6 +120,7 @@ export function CaseScreen({ n }: { n: number }) {
         const keep = prev[tile.id] && tile.id !== level.target
         return keep ? prev : { ...prev, [tile.id]: res }
       })
+      setRunning(null)
       if (res.verdict === 'known') sfx.success()
       if (tutorial === 4 && tile.id === level.target && res.verdict === 'known') set((p) => ({ ...p, tutorial: 5 }))
     }, 650 * (res.checks.length + 1))

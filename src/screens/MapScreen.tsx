@@ -85,17 +85,19 @@ export function MapScreen() {
                       onClick={() => go(n)}
                       onMouseEnter={() => sfx.hover()}
                       data-tut={n === 2 ? 'next-level' : undefined}
-                      aria-label={`Case ${n}: ${title} (${st})`}
+                      aria-label={`Case ${n}: ${title} (${st === 'sealed' ? 'coming soon' : st})`}
+                      title={st === 'sealed' ? 'Coming soon · tile pair in registration' : undefined}
                     >
                       <span className="node-core">
                         {st === 'done' ? <svg viewBox="0 0 16 16" width="16" height="16"><path d="M3 8.5 L6.5 12 L13 4.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /></svg>
-                          : st === 'locked' || st === 'sealed' ? <svg viewBox="0 0 16 16" width="13" height="13"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                          : st === 'locked' ? <svg viewBox="0 0 16 16" width="13" height="13"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor" /><path d="M5 7V5a3 3 0 0 1 6 0v2" fill="none" stroke="currentColor" strokeWidth="1.8" /></svg>
+                          : st === 'sealed' ? <span aria-hidden="true">···</span>
                           : <b>{n}</b>}
                       </span>
                       <span className="node-label">
                         <span className="mono">CASE {String(n).padStart(3, '0')}</span>
                         {title}
-                        {st === 'sealed' && <em>Tile pair in registration</em>}
+                        {st === 'sealed' && <em>Coming soon · tile pair in registration</em>}
                       </span>
                     </button>
                   )

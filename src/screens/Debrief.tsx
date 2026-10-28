@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getLevel, PLAYABLE, TILE_IMG, TILES, type Verdict } from '../data/fixtures'
+import { caseItem, getLevel, PLAYABLE, type Verdict } from '../data/fixtures'
 import { useGame } from '../lib/store'
 import { cdn, navigate } from '../lib/util'
 import { sfx } from '../lib/sfx'
@@ -48,8 +48,9 @@ export function Debrief({ n }: { n: number }) {
     if (level.target === 'barnard') badge('barnard')
     if (c.artifacts > 0) badge('artifact')
     if (s.clears + c.clears >= 5) badge('skeptic')
-    if (c.tiles === level.tiles.length) badge('clean-case')
-    if (level.chapter >= 2) badge('subtractor')
+    if (c.tiles >= c.results.length) badge('clean-case')
+    if (level.chapter === 2) badge('subtractor')
+    if (level.kind === 'bands' && c.solved) badge('cold-hand')
     sfx.success()
     if (s.tutorial === 6) setTimeout(() => navigate('/map'), 900)
   }
@@ -66,12 +67,12 @@ export function Debrief({ n }: { n: number }) {
       </div>
 
       <div className="debrief-grid">
-        <section className="reward" data-tut="xp">
+        <section className="reward" data-tut="reward">
           <div className="reward-xp display">+{shown}<span>XP</span></div>
           <div className="reward-break mono">
             {level.tutorial && <div><span>Training reward</span><b>+50</b></div>}
-            <div><span>Bonus inspection</span><b>+{c.xp - (level.tutorial ? 50 : 0) - (c.solved && c.tiles === level.tiles.length ? 40 : 0)}</b></div>
-            {c.solved && c.tiles === level.tiles.length && <div><span>Clean case bonus</span><b>+40</b></div>}
+            <div><span>Bonus inspection</span><b>+{c.xp - (level.tutorial ? 50 : 0) - (c.solved && c.tiles >= c.results.length ? 40 : 0)}</b></div>
+            {c.solved && c.tiles >= c.results.length && <div><span>Clean case bonus</span><b>+40</b></div>}
             <div><span>Mandatory target</span><b>story progress</b></div>
           </div>
           <XPBar />
@@ -95,14 +96,17 @@ export function Debrief({ n }: { n: number }) {
         <section className="debrief-tiles">
           <div className="panel-title mono">BATCH LEDGER</div>
           <div className="ledger">
-            {c.results.map((r) => (
-              <div key={r.id} className={`ledger-row ${r.verdict === 'unreviewed' ? 'dim' : ''}`}>
-                <img src={cdn(TILE_IMG(r.id, 'b'), 80)} alt="" />
-                <span className="mono">{TILES[r.id].code}</span>
-                <span className="ledger-name">{r.verdict === 'unreviewed' ? 'Not reviewed' : TILES[r.id].name}</span>
-                {r.verdict !== 'unreviewed' && <Chip v={r.verdict as Verdict} small />}
-              </div>
-            ))}
+            {c.results.map((r) => {
+              const it = caseItem(r.id)
+              return (
+                <div key={r.id} className={`ledger-row ${r.verdict === 'unreviewed' ? 'dim' : ''}`}>
+                  {it.img ? <img src={cdn(it.img, 80)} alt="" /> : <svg className="ledger-lc" viewBox="0 0 40 40" aria-hidden><path d="M2 24 H9 L12 10 L16 32 L21 16 L25 24 H38" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" /></svg>}
+                  <span className="mono">{it.code}</span>
+                  <span className="ledger-name">{r.verdict === 'unreviewed' ? 'Not reviewed' : it.name}</span>
+                  {r.verdict !== 'unreviewed' && <Chip v={r.verdict as Verdict} small />}
+                </div>
+              )
+            })}
           </div>
         </section>
       </div>

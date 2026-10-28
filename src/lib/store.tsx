@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { rankFor } from '../data/fixtures'
 import { setSound } from './sfx'
 
@@ -42,8 +42,8 @@ export const FRESH: GameState = {
 
 /** A pre-played save so a presentation can jump straight into a rank-up moment. */
 export const DEMO_SAVE = (s: GameState): GameState => ({
-  ...s, callsign: s.callsign || 'Det. Nova Reyes', started: true,
-  xp: 5240, tiles: 189, correct: 171, judged: 182, known: 3, artifacts: 14, clears: 121,
+  ...s, callsign: s.callsign || 'Det. Yead Muhammad', started: true,
+  xp: 5240, tiles: 89, correct: 68, judged: 89, known: 3, artifacts: 14, clears: 65,
   completed: [1, 2, 3], badges: ['first-flag', 'barnard', 'skeptic', 'artifact'], tutorial: null, tutorialDone: true,
   history: [
     { level: 3, title: "Lalande's Drift", xp: 210, tiles: 12, at: '2026-10-04' },
@@ -71,22 +71,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setSound(s.sound)
   }, [s])
 
-  const api = useMemo<Ctx>(() => ({
-    s,
-    set: (fn) => setS(fn),
-    award: (patch) => setS((prev) => {
-      const next = { ...prev }
-      for (const [k, v] of Object.entries(patch)) (next as any)[k] = (prev as any)[k] + (v as number)
-      const before = rankFor(prev.tiles).n
-      const after = rankFor(next.tiles).n
-      if (after > before) {
-        next.rankUp = after
-        if (after >= 2 && !next.badges.includes('field-analyst')) next.badges = [...next.badges, 'field-analyst']
-      }
-      return next
-    }),
-    badge: (id) => setS((prev) => (prev.badges.includes(id) ? prev : { ...prev, badges: [...prev.badges, id] })),
-  }), [s])
+  // set / award / badge keep a stable identity, so effects that list them as dependencies
+  // do not re-run on every state change.
+  const set = useCallback((fn: (s: GameState) => GameState) => setS(fn), [])
+  const award = useCallback((patch: Partial<Pick<GameState, 'xp' | 'tiles' | 'correct' | 'judged' | 'known' | 'artifacts' | 'clears'>>) => setS((prev) => {
+    const next = { ...prev }
+    for (const [k, v] of Object.entries(patch)) (next as any)[k] = (prev as any)[k] + (v as number)
+    const before = rankFor(prev.tiles).n
+    const after = rankFor(next.tiles).n
+    if (after > before) {
+      next.rankUp = after
+      if (after >= 2 && !next.badges.includes('field-analyst')) next.badges = [...next.badges, 'field-analyst']
+    }
+    return next
+  }), [])
+  const badge = useCallback((id: string) => setS((prev) => (prev.badges.includes(id) ? prev : { ...prev, badges: [...prev.badges, id] })), [])
+  const api = useMemo<Ctx>(() => ({ s, set, award, badge }), [s, set, award, badge])
 
   return <GameCtx.Provider value={api}>{children}</GameCtx.Provider>
 }

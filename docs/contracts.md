@@ -97,14 +97,15 @@ interface Level   { n: number; chapter: number; title: string; briefing: string;
 | `nextRank(tiles)` | First rank with `rank.tiles > tiles`, or `undefined` at max. |
 | `TOOLS` | Each `chapter` ∈ 1..5. `TOOLS[1]` is assumed to be Difference Imaging by `CaseScreen`'s lesson card. |
 | `CHAPTERS` | Exactly 5; `CHAPTERS[n-1].n === n`; `tool` must be a valid `TOOLS[].id` (`MapScreen` uses `!`). |
-| `PLAYABLE` | Authored levels. `chapter === ceil(n/10)`. `target ∈ tiles ⊆ keys(TILES)`. Exactly one `tutorial: true` level (case 1) is assumed. |
+| `PLAYABLE` | Authored levels. `chapter === ceil(n/10)`. `target ∈ tiles ⊆ keys(TILES)`. Cases 1–10 author the full first chapter; exactly one `tutorial: true` level (case 1) is assumed. |
 | `getLevel(n)` | `PLAYABLE.find(l => l.n === n)`. |
 | `LEVEL_NAMES` | Titles for cases without a level; `MapScreen` uses `level.title ?? LEVEL_NAMES[n]`. Case numbers 1–50 should resolve to a title one way or the other. |
 | `order(target, seed)` | Deterministic: same inputs ⇒ same order. Output length = `keys(TILES).length` (currently 12), contains every tile exactly once, target at index `(seed*5) % 12`. |
 
 **Case number ⇄ chapter ⇄ rank mapping** (relied on in `levelState`, `MapScreen`):
 `chapter = ceil(n/10)`; chapter `c` requires `rankFor(tiles).n >= c`; node index
-`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`.
+`n = (chapter-1)*10 + i + 1`. Rank `r` thus gates chapter `r`. Rank 2 is set to 100 reviewed
+tiles so the normal first-chapter path can continue directly to case 11.
 
 ### 2.3 Other fixtures
 
@@ -193,7 +194,8 @@ useGame(): {
 ### 3.3 Presets
 
 - `FRESH` — clean player.
-- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 189`, `correct 171`, `judged 182`, `known 3`, `artifacts 14`, `clears 121`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- `DEMO_SAVE(s)` — keeps current `s`, sets: `callsign` (default `'Det. Nova Reyes'`), `started`, `xp 5240`, `tiles 89`, `correct 68`, `judged 89`, `known 3`, `artifacts 14`, `clears 65`, `completed [1,2,3]`, four badges, `tutorial null`, `tutorialDone true`, three history rows. **Contract:** `tiles` must stay `RANKS[1].tiles − 11` for the Title button text to be true.
+- Aggregate invariant: `tiles = judged`, `correct = known + clears`, and `known + artifacts + clears <= judged`.
 - Settings "Reset progress" preserves `theme`, `colorblind`, `presenter` and resets everything else to `FRESH` (so `sound` is reset to `true`).
 
 ---
@@ -318,7 +320,7 @@ Keyboard `D` and the toolbar button honour `tools.diff`.
 | Rank | Title | Tiles | Weight | First case |
 |---|---|---|---|---|
 | 1 | Learner | 0 | 1.0 | 1 |
-| 2 | Field Analyst | 200 | 1.4 | 11 |
+| 2 | Field Analyst | 100 | 1.4 | 11 |
 | 3 | Sky Inspector | 320 | 2.1 | 21 |
 | 4 | Deep Space Lead | 420 | 2.9 | 31 |
 | 5 | Master Investigator | 500 | 4.0 | 41 |
@@ -368,7 +370,8 @@ interface Props {
 |---|---|---|
 | `Starfield` | `density?: number` (default 1) | Fixed canvas; re-seeds on `density` change; honours reduced motion; reads `--star`. |
 | `RankEmblem` | `n`, `size?`, `glow?` | Gradient id `eg{n}` is **not unique per instance** — multiple emblems of the same rank share an id (works because the definition is identical). |
-| `XPBar` | `compact?` | Reads global state; carries `data-tut="xp"`. |
+| `XPBar` | `compact?` | Reads global state; carries `data-tut="xp"`. The HUD and Debrief
+  instances therefore currently duplicate the tutorial hook. |
 | `Chip` | `v: Verdict`, `small?` | Total over `Verdict`; each verdict has a distinct icon. |
 | `Btn` | `variant?: 'primary'\|'ghost'\|'danger'\|'ok'`, `onClick`, `disabled`, `className`, `...rest` | Plays hover/click sounds; `rest` is spread **after** handlers, so passing `onClick`/`onMouseEnter` via `rest` would override sound handling. |
 | `DisplayToggles` | – | Dark / light are mutually exclusive; colour-blind is an independent toggle. |
@@ -381,7 +384,7 @@ interface Props {
 | `Logo` | `big?` variant only. |
 | `HUD` | `route: string`; hidden on Title by `App`. `NAV` = Campaign `/map`, Rankings `/ranks`, Dossier `/dossier`, Mission `/archive`. |
 | `RankUp` | Visible while `state.rankUp` is truthy; clicking backdrop dismisses; "Continue" clears and navigates `/map`. Shows a tool-unlock block only when `TOOLS.find(t => t.chapter === n)` and a matching chapter exist (always for 1–5). Plays `sfx.rankUp()` on change. |
-| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP, preview rank-up (cycles up to 5), unlock chapter 2 (`completed=[1,2,3,4]`, `tiles ≥ 205`), start tutorial, reset to fresh (keeps presenter on). |
+| `Presenter` | Active when `state.presenter`. `Shift+P` toggles. Actions: load demo save, +25 tiles/+400 XP (also +25 judged/correct/clears), preview rank-up (cycles up to 5), unlock chapter 2 (marks cases 1–10 complete and grants tiles/judgements up to `RANKS[1].tiles`), start tutorial, reset to fresh (keeps presenter on). Presenter tile grants preserve the aggregate counter invariant. |
 
 ### 6.4 Screen contracts
 
@@ -419,7 +422,12 @@ Rules:
   or (b) provide a `manual` button.** Steps 1–4 satisfy (a); steps 5 and 7 satisfy (b);
   step 6 currently satisfies neither (see §12 G1).
 - The guide re-measures every 250 ms and on resize and (capturing) scroll.
-- Only the owning screen may advance `state.tutorial`. `Guide` itself advances 5→6 and 7→done.
+- Normal tutorial progression is advanced by the owning screen: CaseScreen handles 1→5,
+  Debrief handles 6→7, and MapScreen handles 7→done when the case node is clicked.
+  Guide handles the manual Step 5 report action and the Step 7 "Got it" action.
+- The guide also exposes a visible 1–7 direct step-jump bar. Those controls can set
+  `state.tutorial` to any step and navigate to a hard-coded tutorial route
+  (`/case/1`, `/debrief/1`, or `/`); they bypass the normal action sequence.
 - Keyboard shortcuts in `CaseScreen` are disabled whenever `state.tutorial` is non-null.
 
 Hook inventory:

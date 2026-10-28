@@ -38,7 +38,7 @@ export function Title() {
         <div className="badge-sign">
           <label htmlFor="callsign" className="mono">DETECTIVE CALLSIGN</label>
           <div className="badge-row">
-            <input id="callsign" value={name} maxLength={24} placeholder="e.g. Det. Nova Reyes" onChange={(e) => { setName(e.target.value); setErr('') }} onKeyDown={(e) => e.key === 'Enter' && start()} aria-invalid={!!err} />
+            <input id="callsign" value={name} maxLength={24} placeholder="e.g. Det. Yead Muhammad" onChange={(e) => { setName(e.target.value); setErr('') }} onKeyDown={(e) => e.key === 'Enter' && start()} aria-invalid={!!err} />
             <button className="btn btn-primary big" onClick={start}><span>{s.started ? 'Resume Investigation' : 'New Investigation'}</span></button>
           </div>
           {err && <div className="field-err">{err}</div>}

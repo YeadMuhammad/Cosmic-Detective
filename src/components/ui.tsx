@@ -60,13 +60,18 @@ export function RankEmblem({ n, size = 44, glow = false }: { n: number; size?: n
   )
 }
 
-export function XPBar({ compact = false }: { compact?: boolean }) {
+/**
+ * XP and rank progress bar.
+ * `tut` is an optional tutorial spotlight hook (rendered as `data-tut`).
+ * It is omitted by default so that several bars on screen never share a hook.
+ */
+export function XPBar({ compact = false, tut }: { compact?: boolean; tut?: string }) {
   const { s } = useGame()
   const r = rankFor(s.tiles)
   const nx = nextRank(s.tiles)
   const pct = nx ? ((s.tiles - r.tiles) / (nx.tiles - r.tiles)) * 100 : 100
   return (
-    <div className={`xpbar ${compact ? 'compact' : ''}`} data-tut="xp">
+    <div className={`xpbar ${compact ? 'compact' : ''}`} data-tut={tut}>
       <RankEmblem n={r.n} size={compact ? 36 : 52} />
       <div className="xp-body">
         <div className="xp-top">

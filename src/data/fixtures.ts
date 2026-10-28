@@ -3,6 +3,8 @@
 // totals are illustrative demo fixtures and are labelled as such in the UI.
 // A later milestone swaps these for the data, verification and consensus services.
 
+import { CURVES, CURVE_IDS } from './lightcurves'
+
 export type TileKind = 'mover' | 'stationary' | 'halo' | 'blend' | 'galaxy' | 'cluster'
 
 export interface Tile {
@@ -68,11 +70,25 @@ export const BARNARD_BANDS = [
   { key: 'w2', label: 'WISE W2', wl: '4.6 µm', era: '2010', file: '/sky/barnard-w2.jpg', tint: '#c06bff' },
 ]
 
+/**
+ * Barnard's Star measured in each survey (pixel positions on the 512 px band images, measured
+ * from the real data). The star moves about 10″ a year, so it sits at a different place in each
+ * epoch. Years are approximate mid-epochs of the plates and scans.
+ */
+export const BARNARD_TRACK = [
+  { bands: ['dss1b'], label: 'DSS1 plates', year: 1953, pos: [247, 372] as [number, number] },
+  { bands: ['dss2r'], label: 'DSS2 plates', year: 1992, pos: [267, 132] as [number, number] },
+  { bands: ['2massj', '2massk'], label: '2MASS scans', year: 1999, pos: [269, 80] as [number, number] },
+  { bands: ['w1', 'w2'], label: 'WISE scans', year: 2010, pos: [274, 17] as [number, number] },
+]
+/** Sectors that have a registered multi-band cutout. Add an id here after running fetch-bands. */
+export const LIVE_BAND_SECTORS = ['barnard']
+
 // ---------------------------------------------------------------- ranks
 export interface Rank { n: number; title: string; tiles: number; weight: number; level: number }
 export const RANKS: Rank[] = [
   { n: 1, title: 'Learner', tiles: 0, weight: 1.0, level: 1 },
-  { n: 2, title: 'Field Analyst', tiles: 200, weight: 1.4, level: 11 },
+  { n: 2, title: 'Field Analyst', tiles: 100, weight: 1.4, level: 11 },
   { n: 3, title: 'Sky Inspector', tiles: 320, weight: 2.1, level: 21 },
   { n: 4, title: 'Deep Space Lead', tiles: 420, weight: 2.9, level: 31 },
   { n: 5, title: 'Master Investigator', tiles: 500, weight: 4.0, level: 41 },
@@ -108,6 +124,8 @@ export interface Level {
   target: string // mandatory tile id
   tiles: string[]
   tutorial?: boolean
+  /** Chapter 3 and 4 cases run on their own tool screens instead of the blink/diff viewer. */
+  kind?: 'bands' | 'lightcurve'
 }
 
 const ALL = Object.keys(TILES)
@@ -129,8 +147,24 @@ export const PLAYABLE: Level[] = [
     briefing: 'The reviewers before you left a note: “something slid south.” Find the source that drifted, and rule out the impostors before you sign your name to it.' },
   { n: 4, chapter: 1, title: 'The Quiet Ember', target: 'vanmaanen2', tiles: order('vanmaanen2', 17),
     briefing: 'A dim source in Pisces. Its motion is small, only a few arcseconds a year, and it hides among faint neighbours. Look closely, then look again.' },
+  { n: 5, chapter: 1, title: 'Plate Noise', target: 'wolf359', tiles: order('wolf359', 19),
+    briefing: 'The plate scanner has marked a faint displacement in Leo. Compare both epochs carefully and separate a real nearby star from the noise of the old emulsion.' },
+  { n: 6, chapter: 1, title: 'Spikes and Shadows', target: 'groombridge1830', tiles: order('groombridge1830', 29),
+    briefing: 'Diffraction spikes and uneven exposure make this field look busier than it is. Blink the pair, then follow the source that actually changed position.' },
+  { n: 7, chapter: 1, title: 'The Faded Emulsion', target: 'lalande21185', tiles: order('lalande21185', 31),
+    briefing: 'A weak signal survives only as a smudge on the older plate. Use the second epoch as your anchor and confirm the motion before filing your report.' },
+  { n: 8, chapter: 1, title: 'Two Lights, One Star', target: 'vanmaanen2', tiles: order('vanmaanen2', 37),
+    briefing: 'Two apparent points of light compete for attention in this field. Check the blink carefully: only one position belongs to the moving source.' },
+  { n: 9, chapter: 1, title: 'A Crowd in Hercules', target: 'barnard', tiles: order('barnard', 41),
+    briefing: 'Crowding makes the old record difficult to read. Find the source that shifts between epochs, and leave the stationary neighbours unflagged.' },
+  { n: 10, chapter: 1, title: 'Graduation Night', target: 'wolf359', tiles: order('wolf359', 47),
+    briefing: 'This final training batch brings together every distraction you have learned to reject. Identify the genuine motion and earn your place on the next chapter.' },
   { n: 11, chapter: 2, title: 'The Phantom Orbit', target: 'wolf359', tiles: order('wolf359', 23),
     briefing: 'An anomalous signal near Leo. Blinking is not enough when the field is busy. Subtract one frame from the other, and let the static stars cancel themselves out.' },
+  { n: 21, chapter: 3, kind: 'bands', title: 'Below the Red', target: 'barnard', tiles: ['barnard'],
+    briefing: 'One source glows in the mid-infrared and leaves no trace in any optical or near-infrared image at the same position. Build a colour composite, read its brightness band by band, and decide what is hiding below the red.' },
+  { n: 31, chapter: 4, kind: 'lightcurve', title: 'Debris Field', target: 'hd209458', tiles: CURVE_IDS,
+    briefing: 'Eight stars, eight records of brightness over time. One of them dips on a schedule, as if something dark crosses in front of it. A light curve hides that rhythm in noise until you fold it at the right period.' },
 ]
 export const getLevel = (n: number) => PLAYABLE.find((l) => l.n === n)
 
@@ -193,4 +227,10 @@ export const PLAYERS: Player[] = [
 
 export const COMMUNITY = { tiles: 1284617, known: 38402, rejected: 216930, candidates: 211, detectives: 9318 }
 
-export const GUIDE = { name: 'Dr. Edda Varga', role: 'Survey Lead · Case Supervisor', img: '/img/guide.png' }
+export const GUIDE = { name: 'Dr. Biva Chowdhury', role: 'Survey Lead · Case Supervisor', img: '/img/guide.png' }
+
+/** Ledger label for any case item: a sky tile (with thumbnail) or a light curve (no thumbnail). */
+export const caseItem = (id: string): { code: string; name: string; img: string | null } =>
+  TILES[id] ? { code: TILES[id].code, name: TILES[id].name, img: TILE_IMG(id, 'b') }
+    : CURVES[id] ? { code: CURVES[id].code, name: CURVES[id].name, img: null }
+      : { code: id, name: id, img: null }
