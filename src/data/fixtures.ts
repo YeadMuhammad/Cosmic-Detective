@@ -125,7 +125,7 @@ export interface Level {
   tiles: string[]
   tutorial?: boolean
   /** Chapter 3 and 4 cases run on their own tool screens instead of the blink/diff viewer. */
-  kind?: 'bands' | 'lightcurve'
+  kind?: 'bands' | 'lightcurve' | 'research'
 }
 
 const ALL = Object.keys(TILES)
@@ -165,6 +165,8 @@ export const PLAYABLE: Level[] = [
     briefing: 'One source glows in the mid-infrared and leaves no trace in any optical or near-infrared image at the same position. Build a colour composite, read its brightness band by band, and decide what is hiding below the red.' },
   { n: 31, chapter: 4, kind: 'lightcurve', title: 'Debris Field', target: 'hd209458', tiles: CURVE_IDS,
     briefing: 'Eight stars, eight records of brightness over time. One of them dips on a schedule, as if something dark crosses in front of it. A light curve hides that rhythm in noise until you fold it at the right period.' },
+  { n: 41, chapter: 5, kind: 'research', title: 'Open Sky Research Portal', target: '', tiles: [],
+    briefing: 'Search live SPHEREx spectral image observations by sky position. Compare available detector bands and inspect the observation series.' },
 ]
 export const getLevel = (n: number) => PLAYABLE.find((l) => l.n === n)
 
