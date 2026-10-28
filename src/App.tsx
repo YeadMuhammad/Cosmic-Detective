@@ -18,6 +18,8 @@ import { ResearchPortal } from './screens/ResearchPortal'
 
 import { TeamScreen } from './screens/TeamScreen'
 
+import { TeamScreen } from './screens/TeamScreen'
+
 export default function App() {
   const route = useRoute()
   const { s } = useGame()
@@ -30,6 +32,7 @@ export default function App() {
     case 'case': {
       const kind = getLevel(n)?.kind
       screen = kind === 'research' ? <ResearchPortal key={n} /> : kind === 'bands' ? <BandsCase key={n} n={n} /> : kind === 'lightcurve' ? <LightCurveCase key={n} n={n} /> : <CaseScreen key={n} n={n} />
+      screen = kind === 'bands' ? <BandsCase key={n} n={n} /> : kind === 'lightcurve' ? <LightCurveCase key={n} n={n} /> : <CaseScreen key={n} n={n} />
       break
     }
     case 'debrief': screen = <Debrief n={n} />; break
