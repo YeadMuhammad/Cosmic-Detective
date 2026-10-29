@@ -14,7 +14,7 @@ import { Rankings } from './screens/Rankings'
 import { Dossier } from './screens/Dossier'
 import { Archive } from './screens/Archive'
 import { Settings } from './screens/Settings'
-
+import { ResearchPortal } from './screens/ResearchPortal'
 import { TeamScreen } from './screens/TeamScreen'
 
 export default function App() {
@@ -28,7 +28,7 @@ export default function App() {
     case 'map': screen = <MapScreen />; break
     case 'case': {
       const kind = getLevel(n)?.kind
-      screen = kind === 'bands' ? <BandsCase key={n} n={n} /> : kind === 'lightcurve' ? <LightCurveCase key={n} n={n} /> : <CaseScreen key={n} n={n} />
+      screen = kind === 'research' ? <ResearchPortal key={n} /> : kind === 'bands' ? <BandsCase key={n} n={n} /> : kind === 'lightcurve' ? <LightCurveCase key={n} n={n} /> : <CaseScreen key={n} n={n} />
       break
     }
     case 'debrief': screen = <Debrief n={n} />; break
