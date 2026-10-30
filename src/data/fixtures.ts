@@ -92,9 +92,11 @@ export const RANKS: Rank[] = [
   { n: 3, title: 'Sky Inspector', tiles: 320, weight: 2.1, level: 21 },
   { n: 4, title: 'Deep Space Lead', tiles: 420, weight: 2.9, level: 31 },
   { n: 5, title: 'Master Investigator', tiles: 500, weight: 4.0, level: 41 },
+  { n: 6, title: 'Principal Investigator', tiles: 600, weight: 5.5, level: 51 },
 ]
 export const rankFor = (tiles: number) => [...RANKS].reverse().find((r) => tiles >= r.tiles)!
 export const nextRank = (tiles: number) => RANKS.find((r) => r.tiles > tiles)
+export const LEAD_RANK = 6
 
 // ---------------------------------------------------------------- tools
 export type ToolId = 'blink' | 'diff' | 'bands' | 'lightcurve' | 'suite'

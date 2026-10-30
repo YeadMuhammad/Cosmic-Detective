@@ -6,7 +6,12 @@ import { sfx } from '../lib/sfx'
 import { Logo } from '../components/Chrome'
 import { DisplayToggles } from '../components/ui'
 
+import { AuthPanel } from '../components/AuthPanel'
+import { useAuth } from '../lib/auth'
+import { backendReady } from '../lib/supabase'
+
 export function Title() {
+  const { username } = useAuth()
   const { s, set } = useGame()
   const [name, setName] = useState(s.callsign)
   const [err, setErr] = useState('')
@@ -36,15 +41,24 @@ export function Title() {
         </p>
 
         <div className="badge-sign">
-          <label htmlFor="callsign" className="mono">DETECTIVE CALLSIGN</label>
-          <div className="badge-row">
-            <input id="callsign" value={name} maxLength={24} placeholder="e.g. Det. Yead Muhammad" onChange={(e) => { setName(e.target.value); setErr('') }} onKeyDown={(e) => e.key === 'Enter' && start()} aria-invalid={!!err} />
-            <button className="btn btn-primary big" onClick={start}><span>{s.started ? 'Resume Investigation' : 'New Investigation'}</span></button>
-          </div>
-          {err && <div className="field-err">{err}</div>}
+          <AuthPanel />
+          {!username && (
+            <>
+              <label htmlFor="callsign" className="mono">{backendReady ? 'OR PLAY AS A GUEST (SAVED ON THIS DEVICE ONLY)' : 'DETECTIVE CALLSIGN'}</label>
+              <div className="badge-row">
+                <input id="callsign" value={name} maxLength={24} placeholder="e.g. Det. Yead Muhammad" onChange={(e) => { setName(e.target.value); setErr('') }} onKeyDown={(e) => e.key === 'Enter' && start()} aria-invalid={!!err} />
+                <button className="btn btn-primary big" onClick={start}><span>{s.started ? 'Resume Investigation' : 'New Investigation'}</span></button>
+              </div>
+              {err && <div className="field-err">{err}</div>}
+            </>
+          )}
           <div className="title-secondary">
-            <button className="link-btn" onClick={() => { sfx.click(); set((p) => DEMO_SAVE(p)); navigate('/map') }}>Load presentation save, Rank 1, 11 tiles from promotion</button>
-            <span className="dot" />
+            {!username && (
+              <>
+                <button className="link-btn" onClick={() => { sfx.click(); set((p) => DEMO_SAVE(p)); navigate('/map') }}>Load presentation save, Rank 1, 11 tiles from promotion</button>
+                <span className="dot" />
+              </>
+            )}
             <a className="link-btn" href="#/archive" onClick={() => sfx.click()}>How the science works</a>
           </div>
         </div>
