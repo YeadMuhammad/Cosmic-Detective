@@ -253,6 +253,9 @@ begin
     end if;
     select coalesce(array_agg(distinct b), '{}') into v_bands
       from jsonb_array_elements_text(coalesce(v_item -> 'bands', '[]'::jsonb)) as b;
+    if exists (select 1 from unnest(v_bands) as x where x !~ '^D[1-6]$') then
+      raise exception 'Unknown detector band.';
+    end if;
     insert into public.jobs (squad_id, assigned_to, assigned_by, ra, dec, fov, bands, frames, instructions)
     values (p_squad, v_member, auth.uid(), p_ra, p_dec, p_fov, v_bands, v_item -> 'frames', left(btrim(coalesce(p_instructions, '')), 500));
     v_count := v_count + 1;
