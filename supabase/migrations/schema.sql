@@ -232,8 +232,24 @@ begin
     if not exists (select 1 from public.squad_members where squad_id = p_squad and user_id = v_member and role = 'member') then
       raise exception 'Every assignee must be a member of your squad.';
     end if;
-    if jsonb_typeof(v_item -> 'frames') <> 'array' or jsonb_array_length(v_item -> 'frames') < 1 or jsonb_array_length(v_item -> 'frames') > 200 then
+    if coalesce(jsonb_typeof(v_item -> 'frames'), '') <> 'array' then
       raise exception 'Each assignment needs between 1 and 200 archive observations.';
+    end if;
+    if jsonb_array_length(v_item -> 'frames') < 1 or jsonb_array_length(v_item -> 'frames') > 200 then
+      raise exception 'Each assignment needs between 1 and 200 archive observations.';
+    end if;
+    if octet_length((v_item -> 'frames')::text) > 400000 then
+      raise exception 'Archive data is too large.';
+    end if;
+    if exists (
+      select 1 from jsonb_array_elements(v_item -> 'frames') as f
+      where jsonb_typeof(f) <> 'object'
+         or coalesce(f ->> 'url', '')     !~ '^https://irsa\.ipac\.caltech\.edu/[^[:space:]<>"]*$'
+         or coalesce(f ->> 'cutout', '')  !~ '^https://irsa\.ipac\.caltech\.edu/[^[:space:]<>"]*$'
+         or coalesce(f ->> 'band', '')    !~ '^D[1-6]$'
+         or coalesce(f ->> 'release', '') not in ('spherex_qr3', 'spherex_qr2')
+    ) then
+      raise exception 'Archive data failed validation.';
     end if;
     select coalesce(array_agg(distinct b), '{}') into v_bands
       from jsonb_array_elements_text(coalesce(v_item -> 'bands', '[]'::jsonb)) as b;
