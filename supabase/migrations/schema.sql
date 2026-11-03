@@ -26,6 +26,7 @@ create table public.profiles (
   xp integer not null default 0 check (xp >= 0),
   correct integer not null default 0,
   judged integer not null default 0,
+  can_lead boolean not null default false,  -- granted by an admin, never by the client
   created_at timestamptz not null default now()
 );
 -- Two usernames can never differ only by upper/lower case ("Nova" vs "nova").
