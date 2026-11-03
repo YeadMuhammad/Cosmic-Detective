@@ -11,6 +11,7 @@
     "fetch-spherex": "node scripts/fetch-spherex.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

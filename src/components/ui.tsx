@@ -52,6 +52,7 @@ export function RankEmblem({ n, size = 44, glow = false }: { n: number; size?: n
       <path d="M32 11 L50 21 L50 43 L32 53 L14 43 L14 21 Z" fill="none" stroke="var(--rank)" strokeOpacity=".35" strokeWidth="1.2" />
       {n >= 4 && <path d="M19 44 L32 51 L45 44" fill="none" stroke="var(--rank)" strokeWidth="3" strokeLinecap="round" />}
       {n >= 5 && <circle cx="32" cy="20" r="4" fill="var(--rank)" />}
+      {n >= 6 && <path d="M22 12 L32 6 L42 12" fill="none" stroke="var(--rank)" strokeWidth="2.5" strokeLinecap="round" />}
       {pips.slice(0, 3).map((_, i) => {
         const cx = 32 + (i - (Math.min(n, 3) - 1) / 2) * 11
         return <path key={i} transform={`translate(${cx} 33)`} d="M0 -7 L2 -2 L7 -2 L3 1.5 L4.5 7 L0 3.6 L-4.5 7 L-3 1.5 L-7 -2 L-2 -2 Z" fill="var(--rank)" />

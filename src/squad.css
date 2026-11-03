@@ -1,0 +1,43 @@
+/* Multiplayer UI. Uses the game's own colour variables so dark, light and colourblind modes all work. */
+.auth-box { display: grid; gap: 12px; margin-bottom: 18px; padding: 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--panel); max-width: 640px; }
+.auth-fields { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+.auth-fields label, .sq-form label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.auth-box input, .sq-panel input[type='text'], .sq-panel select, .sq-panel textarea {
+  font: inherit; color: var(--text); background: var(--panel-solid); border: 1px solid var(--line-strong); border-radius: 6px; padding: 9px 10px; width: 100%;
+}
+.auth-box input:focus-visible, .sq-panel input:focus-visible, .sq-panel select:focus-visible, .sq-panel textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.auth-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.auth-name { font-size: 28px; }
+@media (max-width: 640px) { .auth-fields { grid-template-columns: 1fr; } }
+
+.sq-panel { margin-top: 28px; padding: 20px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); display: grid; gap: 18px; }
+.sq-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
+.sq-head h2 { margin: 2px 0 0; font-size: 34px; }
+.sq-code { padding: 6px 12px; border: 1px dashed var(--line-strong); border-radius: 6px; font-size: 18px; letter-spacing: 0.2em; user-select: all; }
+.sq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.sq-block { display: grid; gap: 10px; align-content: start; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+.sq-block h3 { margin: 0; font-size: 15px; }
+.sq-form { display: grid; gap: 10px; }
+.sq-panel textarea { min-height: 70px; resize: vertical; }
+.sq-msg { padding: 8px 12px; border-radius: 6px; border: 1px solid var(--bad); color: var(--bad); font-size: 13.5px; }
+.sq-msg.ok { border-color: var(--ok); color: var(--ok); }
+.sq-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.sq-table th, .sq-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.sq-table th { color: var(--muted); font-weight: 500; font-size: 12px; }
+.sq-check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+.sq-jobs { display: grid; gap: 10px; }
+.sq-job { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-left: 4px solid var(--info); border-radius: 8px; background: var(--panel-solid); }
+.sq-job[data-status='submitted'] { border-left-color: var(--pending); }
+.sq-job[data-status='sent_back'] { border-left-color: var(--bad); }
+.sq-job[data-status='verified'] { border-left-color: var(--ok); }
+.sq-job[data-status='reported'] { border-left-color: var(--known); }
+.sq-job-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sq-chip { padding: 2px 9px; border-radius: 99px; border: 1px solid currentColor; font-size: 11.5px; }
+.sq-job[data-status='assigned'] .sq-chip { color: var(--info); }
+.sq-job[data-status='submitted'] .sq-chip { color: var(--pending); }
+.sq-job[data-status='sent_back'] .sq-chip { color: var(--bad); }
+.sq-job[data-status='verified'] .sq-chip { color: var(--ok); }
+.sq-job[data-status='reported'] .sq-chip { color: var(--known); }
+.sq-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sq-sim { font-size: 12px; color: var(--muted); border-left: 3px solid var(--cand); padding-left: 10px; }
+.sq-empty { color: var(--muted); font-size: 14px; }
