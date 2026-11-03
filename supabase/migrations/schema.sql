@@ -169,7 +169,7 @@ declare v_uid uuid := auth.uid(); v_tiles int; v_name text := btrim(coalesce(p_n
 begin
   if v_uid is null then raise exception 'Not signed in.'; end if;
   select tiles into v_tiles from public.profiles where id = v_uid;
-  if public.rank_of(coalesce(v_tiles, 0)) < 6 then raise exception 'Only Rank 6 investigators can lead a squad.'; end if;
+  if not exists (select 1 from public.profiles where id = v_uid and can_lead) or public.rank_of(coalesce(v_tiles, 0)) < 6 then raise exception 'Only approved Rank 6 investigators can lead a squad.'; end if;
   if exists (select 1 from public.squad_members where user_id = v_uid) then raise exception 'You are already in a squad.'; end if;
   if char_length(v_name) < 3 or char_length(v_name) > 30 then raise exception 'Squad name must be 3 to 30 characters.'; end if;
   if exists (select 1 from public.squads where lower(name) = lower(v_name)) then raise exception 'That squad name is taken.'; end if;
