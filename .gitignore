@@ -56,3 +56,5 @@ Desktop.ini
 *.tmp
 *.bak
 tmp/
+
+.vscode/

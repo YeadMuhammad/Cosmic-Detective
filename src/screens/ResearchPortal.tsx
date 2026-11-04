@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Btn } from '../components/ui'
 import { navigate } from '../lib/util'
-import { LEAD_RANK, rankFor } from '../data/fixtures'
-import { useGame } from '../lib/store'
 import { SquadPanel } from '../components/SquadPanel'
 import type { FieldData } from '../lib/squad'
+import { readFitsImage, renderFitsImage } from '../lib/fits'
 
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'] as const
 const WAVE: Record<string, string> = { D1: '0.75–1.09 µm', D2: '1.10–1.62 µm', D3: '1.63–2.41 µm', D4: '2.42–3.82 µm', D5: '3.83–4.41 µm', D6: '4.42–5.00 µm' }
@@ -36,16 +35,55 @@ function rowsFromVOTable(xml: string) {
   return { rows, overflow: statuses.some((el) => el.getAttribute('value') === 'OVERFLOW') }
 }
 
+function initialQuery() {
+  const raw = window.location.hash.split('?')[1] ?? ''
+  const query = new URLSearchParams(raw)
+  return {
+    ra: query.get('ra') ?? DEMO_FIELDS[0].ra,
+    dec: query.get('dec') ?? DEMO_FIELDS[0].dec,
+    fov: query.get('fov') ?? '6',
+  }
+}
+
+function updateQuery(ra: string, dec: string, fov: string) {
+  const hash = window.location.hash.split('?')[0]
+  window.history.replaceState(null, '', `${hash}?ra=${encodeURIComponent(ra)}&dec=${encodeURIComponent(dec)}&fov=${encodeURIComponent(fov)}`)
+}
+
+function BrowseImage({ frame }: { frame: Frame }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  useEffect(() => {
+    let active = true
+    setState('loading')
+    const url = import.meta.env.DEV ? `/spherex-cutout?url=${encodeURIComponent(frame.cutout)}` : `/.netlify/functions/spherex-cutout?url=${encodeURIComponent(frame.cutout)}`
+    fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`Cutout request failed (${response.status}).`)
+      return response.arrayBuffer()
+    }).then((buffer) => {
+      if (!active || !canvas.current) return
+      renderFitsImage(canvas.current, readFitsImage(buffer))
+      setState('ready')
+    }).catch(() => { if (active) setState('error') })
+    return () => { active = false }
+  }, [frame])
+  return <div className="research-image">
+    <canvas ref={canvas} aria-label={`Rendered SPHEREx ${frame.band} cutout`} />
+    {state !== 'ready' && <div className="research-image-state mono">{state === 'loading' ? 'Rendering FITS cutout…' : 'Cutout rendering unavailable. Open the FITS product for inspection.'}</div>}
+  </div>
+}
+
 export function ResearchPortal() {
-  const { s: game } = useGame()
-  const canChoose = rankFor(game.tiles).n >= LEAD_RANK // only Rank 6 picks coordinates
-  const [ra, setRa] = useState(DEMO_FIELDS[0].ra), [dec, setDec] = useState(DEMO_FIELDS[0].dec), [fov, setFov] = useState('6'), [seed, setSeed] = useState('42')
+  const initial = initialQuery()
+  const [ra, setRa] = useState(initial.ra), [dec, setDec] = useState(initial.dec), [fov, setFov] = useState(initial.fov), [seed, setSeed] = useState('42')
   const [bands, setBands] = useState<string[]>([...BANDS]), [frames, setFrames] = useState<Frame[]>([])
   const [activeKey, setActiveKey] = useState('')
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
   const [view, setView] = useState<'bands' | 'raw'>('bands')
+  const [playing, setPlaying] = useState(false)
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
+  const activeIndex = activeFrame ? selectedFrames.findIndex((f) => frameKey(f) === frameKey(activeFrame)) : -1
   const timePoints = selectedFrames.map((frame) => ({ frame, time: frame.time })).filter((point) => Number.isFinite(point.time))
   const timeMin = timePoints.length ? Math.min(...timePoints.map((point) => point.time)) : 0
   const timeMax = timePoints.length ? Math.max(...timePoints.map((point) => point.time)) : 1
@@ -53,12 +91,18 @@ export function ResearchPortal() {
   explorerUrl.searchParams.set('api', 'spectral-images'); explorerUrl.searchParams.set('ra', ra); explorerUrl.searchParams.set('dec', dec); explorerUrl.searchParams.set('sr', `${Number(fov) / 120}d`)
   const toggleBand = (band: string) => setBands((xs) => xs.includes(band) ? xs.filter((x) => x !== band) : [...xs, band])
   const randomize = () => {
-    if (!canChoose) { setRa((Math.random() * 360).toFixed(6)); setDec(((Math.asin(2 * Math.random() - 1) * 180) / Math.PI).toFixed(6)); return }
     const s = Math.max(1, Math.min(99, Math.floor(Number(seed) || 1))); setSeed(String(s))
     let x = s; const next = () => { x = (x * 9301 + 49297) % 233280; return x / 233280 }
     setRa((next() * 360).toFixed(6)); setDec((next() * 180 - 90).toFixed(6))
   }
-  useEffect(() => { if (!canChoose) randomize() }, []) // lower ranks start on a random field
+  useEffect(() => {
+    if (!playing || selectedFrames.length < 2) return
+    const id = window.setInterval(() => {
+      const next = selectedFrames[(activeIndex + 1) % selectedFrames.length]
+      if (next) setActiveKey(frameKey(next))
+    }, 1400)
+    return () => window.clearInterval(id)
+  }, [playing, selectedFrames, activeIndex])
   const loadField = (f: FieldData) => {
     setRa(String(f.ra)); setDec(String(f.dec)); setFov(String(f.fov)); setBands(f.bands.length ? f.bands : [...BANDS])
     const fs = f.frames as Frame[]
@@ -73,6 +117,7 @@ export function ResearchPortal() {
       setError(true); setStatus('Enter RA 0–360°, Dec −90–90°, and a field size above 0 and at most 30 arcmin.'); return
     }
     if (!bands.length) { setError(true); setStatus('Select at least one detector band.'); return }
+    updateQuery(ra, dec, fov)
     setBusy(true); setStatus('Querying IRSA for live SPHEREx QR3 and QR2 observations…')
     try {
       const endpoint = import.meta.env.DEV ? '/irsa-sia' : '/.netlify/functions/spherex-sia'
@@ -137,14 +182,13 @@ export function ResearchPortal() {
   }
   return <div className="screen case-screen research-screen" style={{ ['--accent' as any]: '#ffd84a' }}>
     <div className="case-bar"><div className="case-id"><span className="mono kicker">CH 5 · LIVE ARCHIVE</span><h1 className="display">Open Sky Research Portal</h1></div><div className="case-actions"><Btn variant="ghost" onClick={() => navigate('/map')}>Case board</Btn></div></div>
-    <p className="lede">Query calibrated SPHEREx QR3 and QR2 spectral images by ICRS position. Coverage changes as new archive releases arrive.</p>
-    {!canChoose && <p className="soft">Choosing your own coordinates unlocks at Rank {LEAD_RANK}. Until then your field is random, or set by your squad leader.</p>}
+    <p className="lede">Browse rendered SPHEREx QR3 and QR2 spectral images by ICRS position. This public view shows archive coverage; it does not claim that different wavelengths are a valid science comparison.</p>
     <form className="research-form" onSubmit={search}>
-      <label>RA (deg, ICRS)<input type="number" min="0" max="360" step="any" required disabled={!canChoose} value={ra} onChange={(e) => setRa(e.target.value)} /></label>
-      <label>Dec (deg, ICRS)<input type="number" min="-90" max="90" step="any" required disabled={!canChoose} value={dec} onChange={(e) => setDec(e.target.value)} /></label>
+      <label>RA (deg, ICRS)<input type="number" min="0" max="360" step="any" required value={ra} onChange={(e) => setRa(e.target.value)} /></label>
+      <label>Dec (deg, ICRS)<input type="number" min="-90" max="90" step="any" required value={dec} onChange={(e) => setDec(e.target.value)} /></label>
       <label>Field size (arcmin)<input type="number" min="0.5" max="30" step="any" value={fov} onChange={(e) => setFov(e.target.value)} /></label>
-      <label>Random seed (1–99)<span className="seed-row"><input type="number" min="1" max="99" disabled={!canChoose} value={seed} onChange={(e) => setSeed(e.target.value)} /><button type="button" className="research-link" onClick={randomize}>Random position</button></span></label>
-      <label>Example field<select value="" disabled={!canChoose} onChange={(e) => { const demo = DEMO_FIELDS[Number(e.target.value)]; if (demo) { setRa(demo.ra); setDec(demo.dec); setFov('6') } }}><option value="">Choose a sample position</option>{DEMO_FIELDS.map((demo, i) => <option key={demo.label} value={i}>{demo.label}</option>)}</select></label>
+      <label>Random seed (1–99)<span className="seed-row"><input type="number" min="1" max="99" value={seed} onChange={(e) => setSeed(e.target.value)} /><button type="button" className="research-link" onClick={randomize}>Random position</button></span></label>
+      <label>Example field<select value="" onChange={(e) => { const demo = DEMO_FIELDS[Number(e.target.value)]; if (demo) { setRa(demo.ra); setDec(demo.dec); setFov('6'); updateQuery(demo.ra, demo.dec, '6') } }}><option value="">Choose a sample position</option>{DEMO_FIELDS.map((demo, i) => <option key={demo.label} value={i}>{demo.label}</option>)}</select></label>
       <fieldset className="band-checks"><legend>Detector bands</legend>{BANDS.map((band) => <label key={band}><input type="checkbox" checked={bands.includes(band)} onChange={() => toggleBand(band)} />{band} <small>{WAVE[band]}</small></label>)}</fieldset>
       <Btn disabled={busy}>{busy ? 'Searching IRSA…' : 'Fetch live SPHEREx data'}</Btn>
     </form>
@@ -170,7 +214,7 @@ export function ResearchPortal() {
         <div className="research-table-wrap"><table className="research-table"><thead><tr><th>Observation date</th><th>Detector</th><th>Release</th><th>Observation ID</th></tr></thead><tbody>{selectedFrames.map((f) => <tr key={frameKey(f)} className={activeFrame && frameKey(f) === frameKey(activeFrame) ? 'active' : ''}>
           <td>{f.date}</td><td>{f.band}<small>{WAVE[f.band]}</small></td><td>{f.release.toUpperCase().replace('SPHEREX_', '')}</td><td><button className="research-row-select" onClick={() => setActiveKey(frameKey(f))} aria-pressed={!!activeFrame && frameKey(f) === frameKey(activeFrame)}>{f.obs}</button></td>
         </tr>)}</tbody></table></div>
-        {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
+        {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><BrowseImage frame={activeFrame} /><div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}</span></div><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
       </div>
       <p className="research-note">Detector images have wavelength that varies across the focal plane. FITS cutouts retain image, quality flags, variance, zodiacal model, PSF and wavelength metadata. The SPHEREx Explorer provides an interactive image view.</p>
     </section>}
