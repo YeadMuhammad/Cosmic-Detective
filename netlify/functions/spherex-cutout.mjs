@@ -10,13 +10,15 @@ export default async (request) => {
   if (target.protocol !== 'https:' || target.hostname !== IRSA_HOST || !target.pathname.includes('/ibe/data/spherex/')) {
     return new Response('Only IRSA SPHEREx cutouts are allowed', { status: 400 })
   }
-  const center = target.searchParams.get('center')?.match(/^\s*(-?\d+(?:\.\d+)?)d?\s*,\s*(-?\d+(?:\.\d+)?)d?\s*$/i)
+  const rawCenter = target.searchParams.get('center')
+  const center = rawCenter?.match(/^\s*(-?\d+(?:\.\d+)?)d?\s*,\s*(-?\d+(?:\.\d+)?)d?\s*$/i)
   const size = Number(target.searchParams.get('size'))
   const ra = center ? Number(center[1]) : NaN
   const dec = center ? Number(center[2]) : NaN
   if (!center || !Number.isFinite(ra) || ra < 0 || ra > 360 || !Number.isFinite(dec) || dec < -90 || dec > 90 || !Number.isFinite(size) || size < 1 / 120 || size > 0.5) {
     return new Response('Cutout center or size is invalid or outside public bounds', { status: 400 })
   }
+  target.searchParams.set('center', `${ra},${dec}`)
   try {
     const upstream = await fetch(target, { headers: { Accept: 'application/fits' }, signal: AbortSignal.timeout(55000) })
     if (!upstream.ok) return new Response(`IRSA returned HTTP ${upstream.status}`, { status: upstream.status })

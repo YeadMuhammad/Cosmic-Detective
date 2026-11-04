@@ -50,12 +50,13 @@ function updateQuery(ra: string, dec: string, fov: string) {
   window.history.replaceState(null, '', `${hash}?ra=${encodeURIComponent(ra)}&dec=${encodeURIComponent(dec)}&fov=${encodeURIComponent(fov)}`)
 }
 
-function BrowseImage({ frame, onReady }: { frame: Frame; onReady: () => void }) {
+function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () => void; onReady: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
   useEffect(() => {
     let active = true
     setState('loading')
+    onStart()
     const url = import.meta.env.DEV ? `/spherex-cutout?url=${encodeURIComponent(frame.cutout)}` : `/.netlify/functions/spherex-cutout?url=${encodeURIComponent(frame.cutout)}`
     fetch(url).then((response) => {
       if (!response.ok) throw new Error(`Cutout request failed (${response.status}).`)
@@ -85,6 +86,7 @@ export function ResearchPortal() {
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
+  const currentKey = activeFrame ? frameKey(activeFrame) : ''
   const activeIndex = activeFrame ? selectedFrames.findIndex((f) => frameKey(f) === frameKey(activeFrame)) : -1
   const timePoints = selectedFrames.map((frame) => ({ frame, time: frame.time })).filter((point) => Number.isFinite(point.time))
   const timeMin = timePoints.length ? Math.min(...timePoints.map((point) => point.time)) : 0
@@ -100,12 +102,12 @@ export function ResearchPortal() {
   useEffect(() => {
     if (!playing || selectedFrames.length < 2) return
     const id = window.setInterval(() => {
-      if (!readyFrames.has(activeKey)) return
+      if (!readyFrames.has(currentKey)) return
       const next = selectedFrames[(activeIndex + 1) % selectedFrames.length]
       if (next) setActiveKey(frameKey(next))
     }, 1400)
     return () => window.clearInterval(id)
-  }, [playing, selectedFrames, activeIndex, activeKey, readyFrames])
+  }, [playing, selectedFrames, activeIndex, currentKey, readyFrames])
   const loadField = (f: FieldData) => {
     setRa(String(f.ra)); setDec(String(f.dec)); setFov(String(f.fov)); setBands(f.bands.length ? f.bands : [...BANDS])
     const fs = f.frames as Frame[]
@@ -217,7 +219,7 @@ export function ResearchPortal() {
         <div className="research-table-wrap"><table className="research-table"><thead><tr><th>Observation date</th><th>Detector</th><th>Release</th><th>Observation ID</th></tr></thead><tbody>{selectedFrames.map((f) => <tr key={frameKey(f)} className={activeFrame && frameKey(f) === frameKey(activeFrame) ? 'active' : ''}>
           <td>{f.date}</td><td>{f.band}<small>{WAVE[f.band]}</small></td><td>{f.release.toUpperCase().replace('SPHEREX_', '')}</td><td><button className="research-row-select" onClick={() => setActiveKey(frameKey(f))} aria-pressed={!!activeFrame && frameKey(f) === frameKey(activeFrame)}>{f.obs}</button></td>
         </tr>)}</tbody></table></div>
-        {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><BrowseImage frame={activeFrame} onReady={() => setReadyFrames((previous) => new Set(previous).add(frameKey(activeFrame)))} /><div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}{playing && !readyFrames.has(frameKey(activeFrame)) ? ' · loading' : ''}</span></div><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
+        {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><BrowseImage frame={activeFrame} onStart={() => setReadyFrames((previous) => { const next = new Set(previous); next.delete(currentKey); return next })} onReady={() => setReadyFrames((previous) => new Set(previous).add(currentKey))} /><div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}{playing && !readyFrames.has(currentKey) ? ' · loading' : ''}</span></div><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
       </div>
       <p className="research-note">Detector images have wavelength that varies across the focal plane. FITS cutouts retain image, quality flags, variance, zodiacal model, PSF and wavelength metadata. The SPHEREx Explorer provides an interactive image view.</p>
     </section>}
