@@ -2,7 +2,7 @@ const BLOCK = 2880
 
 function headerValue(header: string, key: string): string | null {
   const card = header.match(new RegExp(`(?:^|\\n)${key.padEnd(8, ' ')}.{0,2}=([^\\n]*)`))
-  return card?.[1]?.split('/')[0]?.trim().replace(/^'|'$/g, '') ?? null
+  return card?.[1]?.split('/')[0]?.trim().replace(/^'|'$/g, '').trim() ?? null
 }
 
 function padded(bytes: number) {

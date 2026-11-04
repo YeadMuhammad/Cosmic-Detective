@@ -13,4 +13,4 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "frame-ancestors 'self' https://*.netlify.app"
+    Content-Security-Policy = "frame-ancestors 'self'"

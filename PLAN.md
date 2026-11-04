@@ -26,13 +26,13 @@
 | Render chosen patch, FOV control, URL embedding | Browse viewer |
 | Blink/play the returned series | Browse viewer; validated Blink later |
 | Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis | Metadata registry and per-target acceptance fixtures |
-| CORS, alignment, proper motion checks | Step 0; browse viewer; experimental image comparison |
+| CORS, alignment, proper motion checks | Step 0; experimental image comparison |
 | Contamination flags and metadata | Native photometry; archive validation |
 | Add/subtract images | Experimental image comparison |
-| Same-channel S/N stacking | Native photometry and worker cache |
+| Same-channel S/N stacking | Native photometry and worker cache; experimental image comparison |
 | Spectra on demand | Metadata capabilities; Light Curve and Spectrum |
 | Gaia/WISE overlays | Archive validation and extensibility |
 | New data releases without hard-coded collections | Archive validation and extensibility |
 | Optional squads | Browse viewer and explicit public-mode policy |
-| Demo script and slow-archive fallback | Explicit cached demo snapshot |
+| Demo script and slow-archive fallback | Explicit cached demo snapshot; cached mode requires explicit user selection and never automatically replaces unavailable live data |
 | Five-target acceptance test | Metadata registry and photometry validation |
