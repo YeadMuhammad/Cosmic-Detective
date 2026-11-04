@@ -8,6 +8,22 @@ export interface ObservationMetadata {
   wavelength?: number
 }
 
+export interface SnapshotEpoch {
+  obsId?: string
+  band?: string
+  date?: string
+  mjd?: number
+  sourceUrl?: string
+  cutoutUrl?: string
+}
+
+export interface SnapshotTile {
+  ra: number
+  dec: number
+  sizeDeg: number
+  epochs?: { a?: SnapshotEpoch; b?: SnapshotEpoch }
+}
+
 export interface Capability {
   state: CapabilityState
   reason: string

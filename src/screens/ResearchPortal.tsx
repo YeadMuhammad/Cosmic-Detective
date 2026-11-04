@@ -5,6 +5,8 @@ import { SquadPanel } from '../components/SquadPanel'
 import type { FieldData } from '../lib/squad'
 import { readFitsImage, renderFitsImage } from '../lib/fits'
 import { capabilitiesFor, type Capabilities } from '../lib/spherex'
+import snapshot from '../../data/spherex/manifest.json'
+import type { SnapshotTile } from '../lib/spherex'
 
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'] as const
 const WAVE: Record<string, string> = { D1: '0.75–1.09 µm', D2: '1.10–1.62 µm', D3: '1.63–2.41 µm', D4: '2.42–3.82 µm', D5: '3.83–4.41 µm', D6: '4.42–5.00 µm' }
@@ -16,6 +18,8 @@ const DEMO_FIELDS = [
   { label: 'Sample field · nearby north', ra: '156.09328159', dec: '-41.6400' },
 ]
 const frameKey = (f: Frame) => `${f.obs}-${f.band}-${f.release}`
+const snapshotGeneratedAt = snapshot.generatedAt
+const snapshotTiles = snapshot.tiles as Record<string, SnapshotTile>
 
 function rowsFromVOTable(xml: string) {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
@@ -51,6 +55,25 @@ function updateQuery(ra: string, dec: string, fov: string) {
   window.history.replaceState(null, '', `${hash}?ra=${encodeURIComponent(ra)}&dec=${encodeURIComponent(dec)}&fov=${encodeURIComponent(fov)}`)
 }
 
+function cachedFrames(ra: number, dec: number, fov: number): Frame[] {
+  const radius = fov / 60
+  const tile = Object.values(snapshotTiles)
+    .filter((candidate) => candidate.epochs?.a?.cutoutUrl || candidate.epochs?.b?.cutoutUrl)
+    .map((candidate) => ({ candidate, distance: Math.hypot((candidate.ra - ra) * Math.cos(dec * Math.PI / 180), candidate.dec - dec) }))
+    .filter(({ candidate, distance }) => distance <= Math.max(radius, candidate.sizeDeg) / 2)
+    .sort((a, b) => a.distance - b.distance)[0]?.candidate
+  if (!tile?.epochs) return []
+  return (['a', 'b'] as const).map((epoch) => {
+    const item = tile.epochs?.[epoch]
+    if (!item?.cutoutUrl || !item.sourceUrl) return null
+    const cutout = new URL(item.cutoutUrl)
+    cutout.searchParams.set('center', `${ra},${dec}`)
+    cutout.searchParams.set('size', String(radius))
+    const time = Number.isFinite(item.mjd) ? (item.mjd! - 40587) * 86400000 : Date.parse(item.date ?? '')
+    return { id: item.obsId ?? `${epoch}-${tile.ra}-${tile.dec}`, band: item.band ?? 'unknown', date: item.date ?? 'Date unavailable', time, url: item.sourceUrl, cutout: cutout.toString(), obs: item.obsId ?? 'Cached observation', release: 'cached-live' }
+  }).filter((frame): frame is Frame => !!frame)
+}
+
 function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () => void; onReady: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
@@ -83,6 +106,8 @@ export function ResearchPortal() {
   const [activeKey, setActiveKey] = useState('')
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
   const [view, setView] = useState<'bands' | 'raw'>('bands')
+  const [sourceMode, setSourceMode] = useState<'live' | 'cached'>('live')
+  const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
   const [playing, setPlaying] = useState(false)
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
@@ -125,6 +150,16 @@ export function ResearchPortal() {
     }
     if (!bands.length) { setError(true); setStatus('Select at least one detector band.'); return }
     updateQuery(ra, dec, fov)
+    if (sourceMode === 'cached') {
+      const cached = cachedFrames(r, d, size)
+      const filtered = cached.filter((frame) => bands.includes(frame.band))
+      setFrames(filtered); setActiveKey(filtered[0] ? frameKey(filtered[0]) : ''); setProvenance('cached-live')
+      setStatus(filtered.length
+        ? `Cached snapshot selected explicitly (${snapshotGeneratedAt}); ${filtered.length} observation${filtered.length === 1 ? '' : 's'} loaded.`
+        : `The cached snapshot (${snapshotGeneratedAt}) has no registered observation at this position.`)
+      return
+    }
+    setProvenance('live')
     setBusy(true); setStatus('Querying IRSA for live SPHEREx QR3 and QR2 observations…')
     try {
       const endpoint = import.meta.env.DEV ? '/irsa-sia' : '/.netlify/functions/spherex-sia'
@@ -198,11 +233,13 @@ export function ResearchPortal() {
       <label>RA (deg, ICRS)<input type="number" min="0" max="360" step="any" required value={ra} onChange={(e) => setRa(e.target.value)} /></label>
       <label>Dec (deg, ICRS)<input type="number" min="-90" max="90" step="any" required value={dec} onChange={(e) => setDec(e.target.value)} /></label>
       <label>Field size (arcmin)<input type="number" min="0.5" max="30" step="any" value={fov} onChange={(e) => setFov(e.target.value)} /></label>
+      <label>Data source<select value={sourceMode} onChange={(e) => setSourceMode(e.target.value as 'live' | 'cached')}><option value="live">Live IRSA archive</option><option value="cached">Cached snapshot ({snapshotGeneratedAt.slice(0, 10)})</option></select></label>
       <label>Random seed (1–99)<span className="seed-row"><input type="number" min="1" max="99" value={seed} onChange={(e) => setSeed(e.target.value)} /><button type="button" className="research-link" onClick={randomize}>Random position</button></span></label>
       <label>Example field<select value="" onChange={(e) => { const demo = DEMO_FIELDS[Number(e.target.value)]; if (demo) { setRa(demo.ra); setDec(demo.dec); setFov('6'); updateQuery(demo.ra, demo.dec, '6') } }}><option value="">Choose a sample position</option>{DEMO_FIELDS.map((demo, i) => <option key={demo.label} value={i}>{demo.label}</option>)}</select></label>
       <fieldset className="band-checks"><legend>Detector bands</legend>{BANDS.map((band) => <label key={band}><input type="checkbox" checked={bands.includes(band)} onChange={() => toggleBand(band)} />{band} <small>{WAVE[band]}</small></label>)}</fieldset>
-      <Btn disabled={busy}>{busy ? 'Searching IRSA…' : 'Fetch live SPHEREx data'}</Btn>
+      <Btn disabled={busy}>{busy ? 'Searching IRSA…' : sourceMode === 'cached' ? 'Load selected cached snapshot' : 'Fetch live SPHEREx data'}</Btn>
     </form>
+    {provenance === 'cached-live' && <div className="provenance-banner" role="status">CACHED-LIVE SNAPSHOT · {snapshotGeneratedAt} · Explicitly selected; this does not automatically replace unavailable live data.</div>}
     <div className={`research-status ${error ? 'error' : ''}`} role="status">{status}</div>
     <div className="research-tools"><div className="research-tabs">
       <button type="button" disabled title="Requires registered multi-epoch images." >Blink Comparator</button>
