@@ -4,6 +4,7 @@ import { navigate } from '../lib/util'
 import { SquadPanel } from '../components/SquadPanel'
 import type { FieldData } from '../lib/squad'
 import { readFitsImage, renderFitsImage } from '../lib/fits'
+import { capabilitiesFor, type Capabilities } from '../lib/spherex'
 
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'] as const
 const WAVE: Record<string, string> = { D1: '0.75–1.09 µm', D2: '1.10–1.62 µm', D3: '1.63–2.41 µm', D4: '2.42–3.82 µm', D5: '3.83–4.41 µm', D6: '4.42–5.00 µm' }
@@ -85,6 +86,7 @@ export function ResearchPortal() {
   const [playing, setPlaying] = useState(false)
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
+  const capabilities = useMemo<Capabilities>(() => capabilitiesFor(selectedFrames), [selectedFrames])
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
   const currentKey = activeFrame ? frameKey(activeFrame) : ''
   const activeIndex = activeFrame ? selectedFrames.findIndex((f) => frameKey(f) === frameKey(activeFrame)) : -1
@@ -185,6 +187,10 @@ export function ResearchPortal() {
           : (err as Error).message)
     } finally { setBusy(false) }
   }
+  const capabilityLabel = (id: keyof Capabilities) => {
+    const capability = capabilities[id]
+    return <span className={`capability-state ${capability.state}`}>{capability.state}</span>
+  }
   return <div className="screen case-screen research-screen" style={{ ['--accent' as any]: '#ffd84a' }}>
     <div className="case-bar"><div className="case-id"><span className="mono kicker">CH 5 · LIVE ARCHIVE</span><h1 className="display">Open Sky Research Portal</h1></div><div className="case-actions"><Btn variant="ghost" onClick={() => navigate('/map')}>Case board</Btn></div></div>
     <p className="lede">Browse rendered SPHEREx QR3 and QR2 spectral images by ICRS position. This public view shows archive coverage; it does not claim that different wavelengths are a valid science comparison.</p>
@@ -206,7 +212,16 @@ export function ResearchPortal() {
       <button type="button" className={view === 'raw' ? 'on' : ''} onClick={() => setView('raw')}>Raw series</button>
       <button type="button" disabled title="Requires a measured time series and candidate period." >Phase fold</button>
     </div>
-      <span className="tool-unavailable">Bands and Raw series open in-page analysis views. Blink, Difference, Light Curve, and Phase fold require aligned image pixels or extracted source photometry.</span>
+      <div className="capability-grid" aria-label="Metadata-derived analysis capabilities">
+        {([
+          ['blink', 'Blink Comparator', 'Blink'],
+          ['difference', 'Difference', 'Difference'],
+          ['lightcurve', 'Light Curve', 'Light Curve'],
+          ['phaseFold', 'Phase fold', 'Phase fold'],
+          ['spectrum', 'Spectrum', 'Spectrum'],
+        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{capabilities[id].reason}</p>{id === 'spectrum' && capabilities[id].state === 'available' ? <button type="button" onClick={() => setView('bands')}>{button}</button> : <button type="button" disabled title={capabilities[id].reason}>{button}</button>}</div>)}
+      </div>
+      <span className="tool-unavailable">Browse mode is display-only. Scientific comparison tools remain disabled until their pixel or photometry inputs validate.</span>
     </div>
     {selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}
