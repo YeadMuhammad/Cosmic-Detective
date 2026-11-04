@@ -47,6 +47,7 @@ function initialQuery() {
     ra: query.get('ra') ?? DEMO_FIELDS[0].ra,
     dec: query.get('dec') ?? DEMO_FIELDS[0].dec,
     fov: query.get('fov') ?? '6',
+    source: query.get('source') === 'cached' ? 'cached' as const : 'live' as const,
   }
 }
 
@@ -106,7 +107,7 @@ export function ResearchPortal() {
   const [activeKey, setActiveKey] = useState('')
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
   const [view, setView] = useState<'bands' | 'raw'>('bands')
-  const [sourceMode, setSourceMode] = useState<'live' | 'cached'>('live')
+  const [sourceMode, setSourceMode] = useState<'live' | 'cached'>(initial.source)
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
   const [playing, setPlaying] = useState(false)
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
