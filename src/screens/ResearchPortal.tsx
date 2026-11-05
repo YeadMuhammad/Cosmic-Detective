@@ -328,11 +328,12 @@ export function ResearchPortal() {
   }
   const importIRSAFile = async (file?: File) => {
     setIrsaError(''); setIrsaResult(null); setAnalysisTool(null)
+    setAnalysisBand(''); setAnalysisRelease(''); setAnalysisPassband('')
+    setTrialPeriodDays(''); setMaxFitQuality('')
     if (!file) return
     try {
       const parsed = parseIRSASpectrophotometry(await file.text(), { ra: Number(ra), dec: Number(dec) })
       setIrsaResult(parsed)
-      setAnalysisBand('')
       const eligibleRows = parsed.rows - parsed.rejected
       setStatus(eligibleRows
         ? `Imported ${parsed.rows} IRSA spectrophotometry rows; ${eligibleRows} pass the informational SOURCE/FULLSAMPLE flag gate and ${parsed.rejected} remain excluded from analysis.`
