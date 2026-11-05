@@ -11,6 +11,7 @@ export interface SourceMeasurement {
   bandwidth: number
   flux: number
   uncertainty: number
+  backgroundFluxMJySr: number
   usable: boolean
   flags: number
   fitQuality: number
@@ -75,7 +76,8 @@ export function isUsableMeasurement(measurement: SourceMeasurement | null | unde
     && Number.isFinite(measurement.wavelength) && measurement.wavelength > 0
     && Number.isFinite(measurement.bandwidth) && measurement.bandwidth > 0
     && Number.isFinite(measurement.time) && Number.isFinite(measurement.flux)
-    && Number.isFinite(measurement.uncertainty) && measurement.uncertainty > 0)
+    && Number.isFinite(measurement.uncertainty) && measurement.uncertainty > 0
+    && Number.isFinite(measurement.backgroundFluxMJySr))
 }
 
 export function isUsableSpectrumPoint(point: SourceSpectrumPoint | null | undefined): point is SourceSpectrumPoint {

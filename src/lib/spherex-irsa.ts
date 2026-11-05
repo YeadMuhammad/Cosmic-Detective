@@ -8,11 +8,12 @@ export interface ImportedIRSAResult {
   source: 'IRSA SPHEREx Spectrophotometry Tool'
 }
 
-const requiredColumns = ['wavelength', 'flux', 'flux_err', 'lambda_width', 'flags', 'fit_ql', 'mjd', 'data_collection', 'det_id', 'lvf_id', 'ra', 'dec']
+const requiredColumns = ['wavelength', 'flux', 'flux_err', 'flux_bkg', 'lambda_width', 'flags', 'fit_ql', 'mjd', 'data_collection', 'det_id', 'lvf_id', 'ra', 'dec']
 const EXPECTED_UNITS: Record<string, string[]> = {
   wavelength: ['um', 'micron', 'microns'],
   flux: ['ujy'],
   flux_err: ['ujy'],
+  flux_bkg: ['mjy/sr', 'mjy sr-1', 'mjy*sr-1'],
   lambda_width: ['um', 'micron', 'microns'],
   mjd: ['d', 'day', 'days', 'mjd'],
   ra: ['deg', 'degree'],
@@ -28,7 +29,7 @@ function finite(value: string, field: string): number {
 
 function unitsMatch(field: string, unit: string | null): boolean {
   const allowed = EXPECTED_UNITS[field]
-  const normalized = unit?.trim().toLowerCase().replace(/[\u00b5\u03bc]/g, 'u').replace(/^[^a-z]+/, '')
+  const normalized = unit?.trim().toLowerCase().replace(/[\u00b5\u03bc]/g, 'u').replace(/\s+/g, ' ').replace(/^[^a-z]+/, '')
   return !allowed || (!!normalized && allowed.includes(normalized))
 }
 
@@ -77,6 +78,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const wavelength = finite(get('wavelength'), 'wavelength')
     const flux = finite(get('flux'), 'flux')
     const uncertainty = finite(get('flux_err'), 'flux uncertainty')
+    const backgroundFluxMJySr = finite(get('flux_bkg'), 'background surface brightness')
     const width = finite(get('lambda_width'), 'bandwidth')
     const mjd = finite(get('mjd'), 'MJD')
     const ra = finite(get('ra'), 'RA')
@@ -105,7 +107,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
     const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure }
-    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
+    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, backgroundFluxMJySr, usable, flags, fitQuality }
     const spectrum: SourceSpectrumPoint = { dataOrigin: 'live', provenance, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })
   }

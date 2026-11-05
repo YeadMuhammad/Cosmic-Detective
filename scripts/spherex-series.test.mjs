@@ -14,6 +14,7 @@ const liveMeasurement = (band, time, flux = 1) => ({
   bandwidth: 0.01,
   flux,
   uncertainty: 0.1,
+  backgroundFluxMJySr: 0.01,
   usable: true,
   flags: 0,
   fitQuality: 1,
