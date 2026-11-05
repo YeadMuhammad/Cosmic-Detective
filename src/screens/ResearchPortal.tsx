@@ -22,6 +22,8 @@ const DEMO_FIELDS = [
   { label: 'Sample field · nearby north', ra: '156.09328159', dec: '-41.6400' },
 ]
 const frameKey = (f: Frame) => `${f.obs}-${f.band}-${f.release}`
+const cutoutProxyUrl = (frame: Frame) => `${import.meta.env.DEV ? '/spherex-cutout' : '/.netlify/functions/spherex-cutout'}?url=${encodeURIComponent(frame.cutout)}`
+const cutoutFilename = (frame: Frame) => `${`${frame.obs}-${frame.band}-${frame.release}`.replace(/[^a-zA-Z0-9._-]+/g, '_')}-cutout.fits`
 const snapshotGeneratedAt = snapshot.generatedAt
 const snapshotTiles = snapshot.tiles as Record<string, SnapshotTile>
 
@@ -190,8 +192,7 @@ function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () =>
     let active = true
     setState('loading')
     onStart()
-    const url = import.meta.env.DEV ? `/spherex-cutout?url=${encodeURIComponent(frame.cutout)}` : `/.netlify/functions/spherex-cutout?url=${encodeURIComponent(frame.cutout)}`
-    fetch(url).then((response) => {
+    fetch(cutoutProxyUrl(frame)).then((response) => {
       if (!response.ok) throw new Error(`Cutout request failed (${response.status}).`)
       return response.arrayBuffer()
     }).then((buffer) => {
@@ -552,12 +553,12 @@ export function ResearchPortal() {
         <text x="72" y={Math.max(95, BANDS.length * 28 + 20)}>{new Date(timeMin).toISOString().slice(0, 10)}</text><text x="650" y={Math.max(95, BANDS.length * 28 + 20)}>{new Date(timeMax).toISOString().slice(0, 10)}</text>
       </svg> : <p>No usable observation dates were returned for this result set.</p>}</div>}
       <div className="research-workspace">
-        <div className="research-table-wrap"><table className="research-table"><thead><tr><th>Observation date</th><th>Detector</th><th>Release</th><th>Observation ID</th></tr></thead><tbody>{selectedFrames.map((f) => <tr key={frameKey(f)} className={activeFrame && frameKey(f) === frameKey(activeFrame) ? 'active' : ''}>
-          <td>{f.date}</td><td>{f.band}<small>{WAVE[f.band]}</small></td><td>{f.release.toUpperCase().replace('SPHEREX_', '')}</td><td><button className="research-row-select" onClick={() => setActiveKey(frameKey(f))} aria-pressed={!!activeFrame && frameKey(f) === frameKey(activeFrame)}>{f.obs}</button></td>
+        <div className="research-table-wrap"><table className="research-table"><thead><tr><th>Observation date</th><th>Detector</th><th>Release</th><th>Observation ID</th><th>FITS cutout</th></tr></thead><tbody>{selectedFrames.map((f) => <tr key={frameKey(f)} className={activeFrame && frameKey(f) === frameKey(activeFrame) ? 'active' : ''}>
+          <td>{f.date}</td><td>{f.band}<small>{WAVE[f.band]}</small></td><td>{f.release.toUpperCase().replace('SPHEREX_', '')}</td><td><button className="research-row-select" onClick={() => setActiveKey(frameKey(f))} aria-pressed={!!activeFrame && frameKey(f) === frameKey(activeFrame)}>{f.obs}</button></td><td><a className="fits-download" href={cutoutProxyUrl(f)} download={cutoutFilename(f)} title={`Download ${f.band} FITS cutout`} aria-label={`Download ${f.band} FITS cutout for ${f.obs}`}><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M3 14v3h14v-3" /></svg></a></td>
         </tr>)}</tbody></table></div>
         {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><BrowseImage frame={activeFrame} onStart={() => setReadyFrames((previous) => { const next = new Set(previous); next.delete(currentKey); return next })} onReady={() => setReadyFrames((previous) => new Set(previous).add(currentKey))} /><div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}{playing && !readyFrames.has(currentKey) ? ' · loading' : ''}</span></div><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
       </div>
-      <p className="research-note">Detector images have wavelength that varies across the focal plane. FITS cutouts retain image, quality flags, variance, zodiacal model, PSF and wavelength metadata. The SPHEREx Explorer provides an interactive image view.</p>
+      <p className="research-note">The canvas uses a linear display stretch between the 2nd and 99.5th finite-pixel percentiles; this affects brightness only, not the FITS samples. Download a FITS cutout from each observation row to inspect or process its image, flags, variance, zodiacal model, PSF, and wavelength metadata. Detector wavelength varies across the focal plane. The SPHEREx Explorer provides an interactive image view.</p>
     </section>}
     <SquadPanel field={{ ra: Number(ra), dec: Number(dec), fov: Number(fov), bands, frames: selectedFrames }} onOpenJob={loadField} />
     <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. Registered blink is visual-only and requires the processing worker; a difference image and time-coherent spectrum remain disabled until their science validation paths are complete. An archive frame list alone is not a calibrated light curve.</p>

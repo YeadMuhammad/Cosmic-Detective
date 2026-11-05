@@ -65,7 +65,9 @@ export function renderFitsImage(canvas: HTMLCanvasElement, image: { width: numbe
   const data = context.createImageData(image.width, image.height)
   for (let i = 0; i < image.values.length; i++) {
     const value = Number.isFinite(image.values[i]) ? Math.max(0, Math.min(1, (image.values[i] - lo) / (hi - lo))) : 0
-    const pixel = Math.round(Math.pow(value, 0.45) * 255)
+    // Linear display stretch between robust percentile limits. This only maps
+    // values to canvas brightness; the FITS samples remain unchanged.
+    const pixel = Math.round(value * 255)
     data.data[i * 4] = pixel
     data.data[i * 4 + 1] = pixel
     data.data[i * 4 + 2] = pixel
