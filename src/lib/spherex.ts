@@ -65,9 +65,9 @@ export interface Capability {
 export type Capabilities = Record<CapabilityId, Capability>
 
 const unavailable = (reason: string): Capability => ({ state: 'unavailable', reason })
-const analysisEligibleFlags = new Set([0, 2 ** 12, 2 ** 21, 2 ** 12 + 2 ** 21])
+const analysisEligibleFlags = new Set([0, 2 ** 21])
 
-/** Permit only documented informational bits; all warning or unknown bits remain gated. */
+/** Permit only IRSA's documented nominal flag values: no flags or SOURCE-only. */
 export function isAnalysisEligibleFlags(flags: number): boolean {
   return Number.isSafeInteger(flags) && flags >= 0 && analysisEligibleFlags.has(flags)
 }
