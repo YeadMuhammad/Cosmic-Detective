@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildLightCurve, buildSpectrum } from '../src/lib/spherex-series.ts'
+import { buildLightCurve, buildSpectrum, phaseFold } from '../src/lib/spherex-series.ts'
 import { capabilitiesFor } from '../src/lib/spherex.ts'
 
 const liveMeasurement = (band, time, flux = 1) => ({
@@ -44,4 +44,30 @@ test('spectrum requires measured live source-spectrum points', () => {
   assert.equal(result.available, true)
   assert.deepEqual(result.value.points.map((point) => point.wavelength), [1, 2])
   assert.equal(capabilitiesFor(frames).spectrum.state, 'available')
+})
+
+test('phase folding bins weighted live points and compares a null model', () => {
+  const points = Array.from({ length: 8 }, (_, index) => liveMeasurement('D1', index * 1000, index % 2 ? 2 : 1))
+  const curve = buildLightCurve(points.map((measurement) => ({
+    band: 'D1', release: 'r', time: measurement.time, measurement,
+  })), 'D1', 6)
+  assert.equal(curve.available, true)
+  const folded = phaseFold(curve.value, 2000, 4)
+  assert.equal(folded.available, true)
+  assert.equal(folded.value.label, 'periodic signal candidate')
+  assert.equal(folded.value.bins.length, 2)
+  assert.equal(folded.value.nullModel.degreesOfFreedom, 7)
+  assert.ok(folded.value.falseAlarmEstimate >= 0 && folded.value.falseAlarmEstimate <= 1)
+})
+
+test('phase folding rejects insufficient cycles and invalid periods', () => {
+  const measurement = liveMeasurement('D1', 0)
+  const curve = buildLightCurve([
+    { band: 'D1', release: 'r', time: 0, measurement },
+    { band: 'D1', release: 'r', time: 1, measurement: { ...measurement, time: 1 } },
+    { band: 'D1', release: 'r', time: 2, measurement: { ...measurement, time: 2 } },
+  ], 'D1')
+  assert.equal(curve.available, true)
+  assert.equal(phaseFold(curve.value, 0).available, false)
+  assert.equal(phaseFold(curve.value, 1).available, false)
 })
