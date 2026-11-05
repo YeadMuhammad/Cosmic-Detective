@@ -67,11 +67,23 @@ function coordinateMatches(result: ImportedIRSAResult | null, raText: string, de
   return Math.hypot(deltaRa * Math.cos(dec * Math.PI / 180), dec - result.target.dec) * 3600 <= 6
 }
 
-function cachedFrames(ra: number, dec: number, fov: number): Frame[] {
+function cachedFrames(ra: number, dec: number, fov: number, bands: string[]): Frame[] {
   const radius = fov / 60
+  const radians = Math.PI / 180
+  const angularDistance = (targetRa: number, targetDec: number, tileRa: number, tileDec: number) => {
+    const deltaDec = (tileDec - targetDec) * radians
+    const deltaRa = ((((tileRa - targetRa) + 540) % 360) - 180) * radians
+    const targetDeclination = targetDec * radians, tileDeclination = tileDec * radians
+    const haversine = Math.sin(deltaDec / 2) ** 2
+      + Math.cos(targetDeclination) * Math.cos(tileDeclination) * Math.sin(deltaRa / 2) ** 2
+    return 2 * Math.asin(Math.min(1, Math.sqrt(haversine))) / radians
+  }
   const tile = Object.values(snapshotTiles)
-    .filter((candidate) => candidate.epochs?.a?.cutoutUrl || candidate.epochs?.b?.cutoutUrl)
-    .map((candidate) => ({ candidate, distance: Math.hypot((candidate.ra - ra) * Math.cos(dec * Math.PI / 180), candidate.dec - dec) }))
+    .filter((candidate) => (['a', 'b'] as const).some((epoch) => {
+      const item = candidate.epochs?.[epoch]
+      return item?.cutoutUrl && item.sourceUrl && item.band && bands.includes(item.band)
+    }))
+    .map((candidate) => ({ candidate, distance: angularDistance(ra, dec, candidate.ra, candidate.dec) }))
     .filter(({ candidate, distance }) => distance <= Math.max(radius, candidate.sizeDeg) / 2)
     .sort((a, b) => a.distance - b.distance)[0]?.candidate
   if (!tile?.epochs) return []
@@ -150,6 +162,7 @@ export function ResearchPortal() {
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
   const [view, setView] = useState<'bands' | 'raw'>('bands')
   const [sourceMode, setSourceMode] = useState<'live' | 'cached'>(initial.source)
+  const [cachedTarget, setCachedTarget] = useState('')
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
   const [playing, setPlaying] = useState(false)
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
@@ -264,7 +277,7 @@ export function ResearchPortal() {
     if (!bands.length) { setError(true); setStatus('Select at least one detector band.'); return }
     updateQuery(ra, dec, fov)
     if (sourceMode === 'cached') {
-      const cached = cachedFrames(r, d, size)
+      const cached = cachedFrames(r, d, size, bands)
       const filtered = cached.filter((frame) => bands.includes(frame.band))
       setFrames(filtered); setActiveKey(filtered[0] ? frameKey(filtered[0]) : ''); setProvenance('cached-live')
       setStatus(filtered.length
@@ -363,17 +376,20 @@ export function ResearchPortal() {
       <label>Dec (deg, ICRS)<input type="number" min="-90" max="90" step="any" required value={dec} onChange={(e) => setDec(e.target.value)} /></label>
       <label>Field size (arcmin)<input type="number" min="0.5" max="30" step="any" value={fov} onChange={(e) => setFov(e.target.value)} /></label>
       <label>Data source<select value={sourceMode} onChange={(e) => setSourceMode(e.target.value as 'live' | 'cached')}><option value="live">Live IRSA archive</option><option value="cached">Cached snapshot ({snapshotGeneratedAt.slice(0, 10)})</option></select></label>
+      {sourceMode === 'cached' && <label>Cached snapshot target<select value={cachedTarget} onChange={(event) => { const target = snapshotTiles[event.target.value]; setCachedTarget(event.target.value); if (target) { const targetRa = String(target.ra), targetDec = String(target.dec); setRa(targetRa); setDec(targetDec); setFov('6'); updateQuery(targetRa, targetDec, '6'); setBands([...new Set([target.epochs?.a?.band, target.epochs?.b?.band].filter((band): band is string => !!band))]) } }}><option value="">Choose a target with cached cutouts</option>{Object.entries(snapshotTiles).filter(([, target]) => target.epochs?.a?.cutoutUrl || target.epochs?.b?.cutoutUrl).map(([id, target]) => <option key={id} value={id}>{id} · RA {target.ra}, Dec {target.dec}</option>)}</select></label>}
       <label>Random seed (1–99)<span className="seed-row"><input type="number" min="1" max="99" value={seed} onChange={(e) => setSeed(e.target.value)} /><button type="button" className="research-link" onClick={randomize}>Random position</button></span></label>
       <label>Example field<select value="" onChange={(e) => { const demo = DEMO_FIELDS[Number(e.target.value)]; if (demo) { setRa(demo.ra); setDec(demo.dec); setFov('6'); updateQuery(demo.ra, demo.dec, '6') } }}><option value="">Choose a sample position</option>{DEMO_FIELDS.map((demo, i) => <option key={demo.label} value={i}>{demo.label}</option>)}</select></label>
       <label>Registry target<select value={registryTarget} onChange={(e) => pickRegistryTarget(e.target.value)}><option value="">Choose a registered target</option>{Object.values(registry?.targets ?? {}).map((target) => <option key={target.meta.id} value={target.meta.id}>{target.meta.label}</option>)}</select></label>
       <fieldset className="band-checks"><legend>Detector bands</legend>{BANDS.map((band) => <label key={band}><input type="checkbox" checked={bands.includes(band)} onChange={() => toggleBand(band)} />{band} <small>{WAVE[band]}</small></label>)}</fieldset>
       <Btn disabled={busy}>{busy ? 'Searching IRSA…' : sourceMode === 'cached' ? 'Load selected cached snapshot' : 'Fetch live SPHEREx data'}</Btn>
     </form>
-    <section className="registry-target" aria-label="Import validated IRSA spectrophotometry">
-      <div className="panel-title mono">SCIENTIFIC INPUT · IRSA SPECTROPHOTOMETRY</div>
-      <p>Run the official IRSA Spectrophotometry Tool for this coordinate. In Results, use the left pane's Prepare Download action to save the extracted spectrum, then import that VOTable here; saving from the plot can save only the displayed table. The importer currently supports TABLEDATA serialization; BINARY and BINARY2 exports are rejected, and a downloaded IRSA export still needs validation. IRSA fits flux while holding your input position and morphology fixed; inspect its cutouts for centering and blends, and ensure the supplied morphology is appropriate for the source. The portal accepts only rows with documented units, matching target coordinates, QR2/QR3 release, detector, LVF exposure and Deep Field provenance, finite uncertainties, and IRSA's nominal flag values 0 or SOURCE-only (2097152).</p>
-      <a href="https://irsa.ipac.caltech.edu/applications/spherex/" target="_blank" rel="noreferrer">Open the official IRSA SPHEREx tools ↗</a>
-      <label className="research-link">Import IRSA VOTable (TABLEDATA only)<input type="file" accept=".vot,.xml,application/xml,text/xml" onChange={(event) => void importIRSAFile(event.target.files?.[0])} /></label>
+    <section className="registry-target" aria-label="SPHEREx photometry pipeline">
+      <div className="panel-title mono">IN-PORTAL PHOTOMETRY PIPELINE</div>
+      <p>The finished workflow will retrieve SPHEREx image inputs and run quality-controlled source photometry from this portal. That pipeline is not enabled yet; browse images are display-only and no measurements are inferred from them. The optional VOTable reference importer below is for validating IRSA results during development, not a required game step. IRSA's current tool fits flux at a user-supplied position and morphology, so any integrated workflow must collect and validate those inputs and account for nearby sources before exposing measurements.</p>
+      <details><summary>Optional reference workflow: inspect and import an IRSA VOTable</summary>
+      <p>For comparison with IRSA's reference results, open the <a href="https://irsa.ipac.caltech.edu/applications/spherex/" target="_blank" rel="noreferrer">official SPHEREx tools</a>, run its Spectrophotometry Tool, and use Prepare Download from Results to save the extracted spectrum. This importer currently supports TABLEDATA serialization only; BINARY and BINARY2 exports are rejected, and compatibility still needs validation against a representative download.</p>
+      <label className="research-link">Import reference VOTable (TABLEDATA only)<input type="file" accept=".vot,.xml,application/xml,text/xml" onChange={(event) => void importIRSAFile(event.target.files?.[0])} /></label>
+      </details>
       {activeIRSAResult && <><label>Maximum fit_ql (optional)<input type="number" min="0" step="any" value={maxFitQuality} onChange={(event) => setMaxFitQuality(event.target.value)} /></label><p>IRSA fit_ql values near 1 generally indicate better fits, but its <a href="https://irsa.ipac.caltech.edu/onlinehelp/spherex/spherex/sp.html" target="_blank" rel="noreferrer">documentation sets no universal cutoff</a>. Leave blank to include every flag-approved point, or enter a research-specific ceiling; this filter also gates light-curve and phase-fold availability.</p>{maxFitQuality !== '' && !validFitQualityLimit && <p className="research-status error" role="alert">Enter a finite, nonnegative fit_ql ceiling.</p>}</>}
       {analysisCapabilities.lightcurve.state === 'available' && <label>Trial period for phase fold (days)<input type="number" min="0" step="any" value={trialPeriodDays} onChange={(event) => setTrialPeriodDays(event.target.value)} /></label>}
       {irsaError && <p className="research-status error" role="alert">{irsaError}</p>}
