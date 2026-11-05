@@ -4,6 +4,7 @@ import { isUsableMeasurement, isUsableSpectrumPoint } from './spherex'
 export interface ValidatedLightCurve {
   dataOrigin: 'live'
   band: string
+  release: 'qr2' | 'qr3'
   points: SourceMeasurement[]
   baselineMs: number
 }
@@ -26,29 +27,35 @@ export interface PhaseFoldResult {
   dataOrigin: 'live'
   label: 'periodic signal candidate'
   periodMs: number
+  epochMs: number
   cycles: number
   bins: PhaseBin[]
   nullModel: { weightedMean: number; chiSquare: number; degreesOfFreedom: number }
   foldedModelImprovement: number
 }
 
-function measurementsFor(frames: ObservationMetadata[], band: string): SourceMeasurement[] {
+function measurementsFor(frames: ObservationMetadata[], band: string, release: 'qr2' | 'qr3'): SourceMeasurement[] {
   return frames
     .map((frame) => frame.measurement)
-    .filter((measurement): measurement is SourceMeasurement => isUsableMeasurement(measurement) && measurement.band === band)
+    .filter((measurement): measurement is SourceMeasurement => isUsableMeasurement(measurement)
+      && measurement.band === band && measurement.provenance.release === release)
     .sort((a, b) => a.time - b.time)
 }
 
-export function buildLightCurve(frames: ObservationMetadata[], band: string, minimumPoints = 3): SeriesResult<ValidatedLightCurve> {
-  const points = measurementsFor(frames, band)
+export function buildLightCurve(frames: ObservationMetadata[], band: string, minimumPoints = 3, release?: 'qr2' | 'qr3'): SeriesResult<ValidatedLightCurve> {
+  const releases = release ? [release] : ['qr2', 'qr3'] as const
+  const validGroups = releases.map((candidate) => ({ release: candidate, points: measurementsFor(frames, band, candidate) }))
+  const group = validGroups.find(({ points }) => points.length >= minimumPoints
+    && points[points.length - 1].time > points[0].time)
+  const points = group?.points ?? validGroups.sort((a, b) => b.points.length - a.points.length)[0]?.points ?? []
   if (points.length < minimumPoints) {
-    return { available: false, reason: `Requires at least ${minimumPoints} quality-approved live measurements in ${band}.` }
+    return { available: false, reason: `Requires at least ${minimumPoints} quality-approved live measurements in ${band} from one calibration release.` }
   }
   const baselineMs = points[points.length - 1].time - points[0].time
   if (!Number.isFinite(baselineMs) || baselineMs <= 0) {
     return { available: false, reason: 'Same-channel measurements do not span a positive time baseline.' }
   }
-  return { available: true, value: { dataOrigin: 'live', band, points, baselineMs } }
+  return { available: true, value: { dataOrigin: 'live', band, release: group?.release ?? release ?? points[0].provenance.release, points, baselineMs } }
 }
 
 export function buildSpectrum(frames: ObservationMetadata[], minimumPoints = 2): SeriesResult<ValidatedSpectrum> {
@@ -59,7 +66,7 @@ export function buildSpectrum(frames: ObservationMetadata[], minimumPoints = 2):
   if (points.length < minimumPoints) {
     return { available: false, reason: `Requires at least ${minimumPoints} quality-approved live spectrum measurements.` }
   }
-  return { available: true, value: { dataOrigin: 'live', points } }
+  return { available: false, reason: 'The imported measurements span multiple exposure times; a time-coherent spectral epoch has not been selected or validated.' }
 }
 
 export function phaseFold(
@@ -81,8 +88,10 @@ export function phaseFold(
     sum + ((point.flux - weightedMean) / point.uncertainty) ** 2
   ), 0)
   const buckets = Array.from({ length: binCount }, () => [] as SourceMeasurement[])
+  const epochMs = curve.points[0].time
   for (const point of curve.points) {
-    const phase = ((point.time % periodMs) + periodMs) % periodMs / periodMs
+    const elapsed = point.time - epochMs
+    const phase = ((elapsed % periodMs) + periodMs) % periodMs / periodMs
     buckets[Math.min(binCount - 1, Math.floor(phase * binCount))].push(point)
   }
   const bins = buckets
@@ -109,6 +118,7 @@ export function phaseFold(
       dataOrigin: 'live',
       label: 'periodic signal candidate',
       periodMs,
+      epochMs,
       cycles,
       bins,
       nullModel: { weightedMean, chiSquare: nullChiSquare, degreesOfFreedom },

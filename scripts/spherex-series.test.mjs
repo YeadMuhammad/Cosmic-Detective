@@ -7,11 +7,14 @@ import { differenceSignificance, validateComparisonPair, withMotionOffset } from
 
 const liveMeasurement = (band, time, flux = 1) => ({
   dataOrigin: 'live',
+  provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: band, exposureId: `exp-${time}` },
   band,
   time,
   flux,
   uncertainty: 0.1,
   usable: true,
+  flags: 0,
+  fitQuality: 1,
 })
 
 test('light curve requires quality-approved same-channel live measurements', () => {
@@ -36,15 +39,15 @@ test('unusable and simulated measurements never enable light curves', () => {
   assert.equal(capabilitiesFor(frames).lightcurve.state, 'unavailable')
 })
 
-test('spectrum requires measured live source-spectrum points', () => {
+test('spectrum stays unavailable when measurements span ungrouped exposures', () => {
   const frames = [
-    { band: 'D1', release: 'r', time: 1, spectrum: [{ dataOrigin: 'live', wavelength: 1, flux: 2, uncertainty: 0.2, usable: true }] },
-    { band: 'D2', release: 'r', time: 2, spectrum: [{ dataOrigin: 'live', wavelength: 2, flux: 3, uncertainty: 0.3, usable: true }] },
+    { band: 'D1', release: 'r', time: 1, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D1', exposureId: 'exp-1' }, wavelength: 1, bandwidth: 0.1, flux: 2, uncertainty: 0.2, usable: true, flags: 0, fitQuality: 1 }] },
+    { band: 'D2', release: 'r', time: 2, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D2', exposureId: 'exp-2' }, wavelength: 2, bandwidth: 0.2, flux: 3, uncertainty: 0.3, usable: true, flags: 0, fitQuality: 1 }] },
   ]
   const result = buildSpectrum(frames)
-  assert.equal(result.available, true)
-  assert.deepEqual(result.value.points.map((point) => point.wavelength), [1, 2])
-  assert.equal(capabilitiesFor(frames).spectrum.state, 'available')
+  assert.equal(result.available, false)
+  assert.match(result.reason, /time-coherent/)
+  assert.equal(capabilitiesFor(frames).spectrum.state, 'unavailable')
 })
 
 test('phase folding bins weighted live points and compares a null model', () => {

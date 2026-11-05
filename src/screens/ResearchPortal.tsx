@@ -5,6 +5,8 @@ import { SquadPanel } from '../components/SquadPanel'
 import type { FieldData } from '../lib/squad'
 import { readFitsImage, renderFitsImage } from '../lib/fits'
 import { capabilitiesFor, type Capabilities } from '../lib/spherex'
+import { parseIRSASpectrophotometry, type ImportedIRSAResult } from '../lib/spherex-irsa'
+import { buildLightCurve, phaseFold } from '../lib/spherex-series'
 import { loadSpherexRegistry, targetCapabilities, type SpherexRegistry } from '../lib/registry'
 import snapshot from '../../data/spherex/manifest.json'
 import type { SnapshotTile } from '../lib/spherex'
@@ -55,6 +57,14 @@ function initialQuery() {
 function updateQuery(ra: string, dec: string, fov: string) {
   const hash = window.location.hash.split('?')[0]
   window.history.replaceState(null, '', `${hash}?ra=${encodeURIComponent(ra)}&dec=${encodeURIComponent(dec)}&fov=${encodeURIComponent(fov)}`)
+}
+
+function coordinateMatches(result: ImportedIRSAResult | null, raText: string, decText: string): boolean {
+  if (!result) return false
+  const ra = Number(raText), dec = Number(decText)
+  if (!Number.isFinite(ra) || !Number.isFinite(dec)) return false
+  const deltaRa = ((ra - result.target.ra + 540) % 360) - 180
+  return Math.hypot(deltaRa * Math.cos(dec * Math.PI / 180), dec - result.target.dec) * 3600 <= 6
 }
 
 function cachedFrames(ra: number, dec: number, fov: number): Frame[] {
@@ -114,6 +124,12 @@ export function ResearchPortal() {
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
   const [registry, setRegistry] = useState<SpherexRegistry | null>(null)
   const [registryTarget, setRegistryTarget] = useState('')
+  const [irsaResult, setIrsaResult] = useState<ImportedIRSAResult | null>(null)
+  const [irsaError, setIrsaError] = useState('')
+  const [analysisTool, setAnalysisTool] = useState<'lightcurve' | 'phaseFold' | null>(null)
+  const [analysisBand, setAnalysisBand] = useState('')
+  const [analysisRelease, setAnalysisRelease] = useState<'qr2' | 'qr3' | ''>('')
+  const [trialPeriodDays, setTrialPeriodDays] = useState('')
   useEffect(() => {
     let active = true
     loadSpherexRegistry().then((data) => { if (active) setRegistry(data) }).catch(() => { /* the portal still works without the registry asset */ })
@@ -122,7 +138,24 @@ export function ResearchPortal() {
   const selectedRegistry = registry?.targets[registryTarget] ?? null
   const registryCapabilities = useMemo<Capabilities | null>(() => (selectedRegistry ? targetCapabilities(selectedRegistry) : null), [selectedRegistry])
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
-  const capabilities = useMemo<Capabilities>(() => capabilitiesFor(selectedFrames), [selectedFrames])
+  const activeIRSAResult = coordinateMatches(irsaResult, ra, dec) ? irsaResult : null
+  const capabilities = useMemo<Capabilities>(() => capabilitiesFor(activeIRSAResult?.observations ?? []), [activeIRSAResult])
+  const measuredBands = [...new Set(activeIRSAResult?.observations.filter((observation) => observation.measurement?.usable).map((observation) => observation.band) ?? [])]
+  const curveGroups = activeIRSAResult ? measuredBands.flatMap((band) => (['qr2', 'qr3'] as const)
+    .filter((release) => buildLightCurve(activeIRSAResult.observations, band, 3, release).available)
+    .map((release) => ({ band, release }))) : []
+  const availableBands = [...new Set(curveGroups.map((group) => group.band))]
+  const effectiveBand = availableBands.includes(analysisBand) ? analysisBand : curveGroups[0]?.band ?? ''
+  const availableReleases = curveGroups.filter((group) => group.band === effectiveBand).map((group) => group.release)
+  const effectiveRelease = availableReleases.includes(analysisRelease as 'qr2' | 'qr3') ? analysisRelease as 'qr2' | 'qr3' : availableReleases[0]
+  const lightCurve = effectiveBand && effectiveRelease && activeIRSAResult ? buildLightCurve(activeIRSAResult.observations, effectiveBand, 3, effectiveRelease) : null
+  const periodResult = lightCurve?.available && trialPeriodDays
+    ? phaseFold(lightCurve.value, Number(trialPeriodDays) * 86400000)
+    : null
+  const phaseCapability = periodResult?.available
+    ? { state: 'available' as const, reason: 'Validated same-channel photometry spans at least two trial-period cycles.' }
+    : { state: 'unavailable' as const, reason: lightCurve?.available ? (periodResult?.reason ?? 'Enter a trial period; at least six points spanning two cycles are required.') : (lightCurve?.reason ?? 'Requires validated live measurements.') }
+  const analysisCapabilities = { ...capabilities, phaseFold: phaseCapability }
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
   const currentKey = activeFrame ? frameKey(activeFrame) : ''
   const activeIndex = activeFrame ? selectedFrames.findIndex((f) => frameKey(f) === frameKey(activeFrame)) : -1
@@ -162,7 +195,7 @@ export function ResearchPortal() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const search = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(false); setFrames([])
+    e.preventDefault(); setError(false); setFrames([]); setIrsaResult(null); setAnalysisTool(null)
     const r = Number(ra), d = Number(dec), size = Number(fov)
     if (!Number.isFinite(r) || r < 0 || r > 360 || !Number.isFinite(d) || d < -90 || d > 90 || !Number.isFinite(size) || size <= 0 || size > 30) {
       setError(true); setStatus('Enter RA 0–360°, Dec −90–90°, and a field size above 0 and at most 30 arcmin.'); return
@@ -241,8 +274,20 @@ export function ResearchPortal() {
           : (err as Error).message)
     } finally { setBusy(false) }
   }
+  const importIRSAFile = async (file?: File) => {
+    setIrsaError(''); setIrsaResult(null); setAnalysisTool(null)
+    if (!file) return
+    try {
+      const parsed = parseIRSASpectrophotometry(await file.text(), { ra: Number(ra), dec: Number(dec) })
+      setIrsaResult(parsed)
+      setAnalysisBand('')
+      setStatus(`Imported ${parsed.rows} IRSA spectrophotometry rows; ${parsed.rejected} rows have non-nominal flags and are excluded from analysis.`)
+    } catch (error) {
+      setIrsaError((error as Error).message)
+    }
+  }
   const capabilityLabel = (id: keyof Capabilities) => {
-    const capability = capabilities[id]
+    const capability = analysisCapabilities[id]
     return <span className={`capability-state ${capability.state}`}>{capability.state}</span>
   }
   return <div className="screen case-screen research-screen" style={{ ['--accent' as any]: '#ffd84a' }}>
@@ -259,6 +304,15 @@ export function ResearchPortal() {
       <fieldset className="band-checks"><legend>Detector bands</legend>{BANDS.map((band) => <label key={band}><input type="checkbox" checked={bands.includes(band)} onChange={() => toggleBand(band)} />{band} <small>{WAVE[band]}</small></label>)}</fieldset>
       <Btn disabled={busy}>{busy ? 'Searching IRSA…' : sourceMode === 'cached' ? 'Load selected cached snapshot' : 'Fetch live SPHEREx data'}</Btn>
     </form>
+    <section className="registry-target" aria-label="Import validated IRSA spectrophotometry">
+      <div className="panel-title mono">SCIENTIFIC INPUT · IRSA SPECTROPHOTOMETRY</div>
+      <p>Run the official IRSA Spectrophotometry Tool for this coordinate, download its spectrum as a VOTable, then import it here. The portal accepts only rows with documented units, matching target coordinates, QR2/QR3 release, detector and exposure provenance, finite uncertainties, and nominal flags.</p>
+      <a href="https://irsa.ipac.caltech.edu/applications/spherex/" target="_blank" rel="noreferrer">Open the official IRSA SPHEREx tools ↗</a>
+      <label className="research-link">Import IRSA VOTable<input type="file" accept=".vot,.xml,application/xml,text/xml" onChange={(event) => void importIRSAFile(event.target.files?.[0])} /></label>
+      {analysisCapabilities.lightcurve.state === 'available' && <label>Trial period for phase fold (days)<input type="number" min="0" step="any" value={trialPeriodDays} onChange={(event) => setTrialPeriodDays(event.target.value)} /></label>}
+      {irsaError && <p className="research-status error" role="alert">{irsaError}</p>}
+      {irsaResult && <p className="research-note" role="status">{irsaResult.source} · RA {irsaResult.target.ra}, Dec {irsaResult.target.dec} · {irsaResult.rows} points · {irsaResult.rejected} excluded by flags. {activeIRSAResult ? 'Imported data is held in this page only.' : 'The query coordinate changed; this import is inactive until you reload a matching result.'}</p>}
+    </section>
     {provenance === 'cached-live' && <div className="provenance-banner" role="status">CACHED-LIVE SNAPSHOT · {snapshotGeneratedAt} · Explicitly selected; this does not automatically replace unavailable live data.</div>}
     {selectedRegistry && registry && registryCapabilities && <section className="registry-target" aria-label="Registered target metadata">
       <div className="panel-title mono">REGISTRY TARGET · {selectedRegistry.meta.label.toUpperCase()}{selectedRegistry.truncated ? ' · TRUNCATED AT THE ROW LIMIT' : ''}</div>
@@ -278,9 +332,9 @@ export function ResearchPortal() {
       <button type="button" disabled title="Requires registered multi-epoch images." >Blink Comparator</button>
       <button type="button" disabled title="Requires registered multi-epoch images." >Difference</button>
       <button type="button" className={view === 'bands' ? 'on' : ''} onClick={() => setView('bands')}>Bands</button>
-      <button type="button" disabled title="Requires source photometry extracted from multiple observations." >Light Curve</button>
+      <button type="button" disabled={analysisCapabilities.lightcurve.state !== 'available'} title={analysisCapabilities.lightcurve.reason} onClick={() => setAnalysisTool('lightcurve')}>Light Curve</button>
       <button type="button" className={view === 'raw' ? 'on' : ''} onClick={() => setView('raw')}>Raw series</button>
-      <button type="button" disabled title="Requires a measured time series and candidate period." >Phase fold</button>
+      <button type="button" disabled={analysisCapabilities.phaseFold.state !== 'available'} title={analysisCapabilities.phaseFold.reason} onClick={() => setAnalysisTool('phaseFold')}>Phase fold</button>
     </div>
       <div className="capability-grid" aria-label="Metadata-derived analysis capabilities">
         {([
@@ -289,10 +343,22 @@ export function ResearchPortal() {
           ['lightcurve', 'Light Curve', 'Light Curve'],
           ['phaseFold', 'Phase fold', 'Phase fold'],
           ['spectrum', 'Spectrum', 'Spectrum'],
-        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{capabilities[id].reason}</p>{id === 'spectrum' && capabilities[id].state === 'available' ? <button type="button" onClick={() => setView('bands')}>{button}</button> : <button type="button" disabled title={capabilities[id].reason}>{button}</button>}</div>)}
+        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => setAnalysisTool(id as 'lightcurve' | 'phaseFold')}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}
       </div>
-      <span className="tool-unavailable">Browse mode is display-only. Scientific comparison tools remain disabled until their pixel or photometry inputs validate.</span>
+      <span className="tool-unavailable">Browse images remain display-only. Photometry tools need an imported, validated IRSA result. Pixel comparisons remain disabled pending image-level validation.</span>
     </div>
+    {analysisTool && activeIRSAResult && <section className="research-results" aria-label={`${analysisTool} analysis`}>
+      <div className="panel-title mono">VALIDATED IRSA DATA · {analysisTool.toUpperCase()}</div>
+      {analysisTool === 'lightcurve' && <>
+        <label>Same detector<select value={effectiveBand} onChange={(event) => setAnalysisBand(event.target.value)}>{availableBands.map((band) => <option key={band} value={band}>{band}</option>)}</select></label>
+        <label>Calibration release<select value={effectiveRelease ?? ''} onChange={(event) => setAnalysisRelease(event.target.value as 'qr2' | 'qr3' | '')}>{availableReleases.map((release) => <option key={release} value={release}>{release.toUpperCase()}</option>)}</select></label>
+        {lightCurve?.available ? <><p>{lightCurve.value.points.length} nominal-flag points · {(lightCurve.value.baselineMs / 86400000).toFixed(5)} day baseline · {lightCurve.value.release.toUpperCase()} calibration only · flux in µJy. IRSA uses a fixed forced position; check source motion and blending before interpreting variability. Its fit_ql values near 1 generally indicate better fits; inspect them point by point.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>UTC</th><th>Flux (µJy)</th><th>Uncertainty (µJy)</th><th>Wavelength (µm)</th><th>RA</th><th>Dec</th><th>LVF exposure</th><th>Flags</th><th>Fit quality</th></tr></thead><tbody>{lightCurve.value.points.map((point, index) => { const row = activeIRSAResult.observations.find((observation) => observation.measurement === point); return <tr key={`${point.time}-${index}`}><td>{new Date(point.time).toISOString()}</td><td>{point.flux}</td><td>{point.uncertainty}</td><td>{row?.wavelength}</td><td>{row?.position?.ra}</td><td>{row?.position?.dec}</td><td>{point.provenance.exposureId}</td><td>{point.flags}</td><td>{point.fitQuality}</td></tr> })}</tbody></table></div></> : <p>{lightCurve?.reason ?? 'No valid same-detector measurements.'}</p>}
+      </>}
+      {analysisTool === 'phaseFold' && <>
+        <p>Phase zero is the first valid observation in the selected detector and release.</p>
+        {periodResult?.available ? <><p>Periodic signal candidate · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
+      </>}
+    </section>}
     {selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}
       {view === 'raw' && <div className="timeline-panel"><p>Each point is an archive image observation, not source brightness. Select a point or its row to inspect the file.</p>{timePoints.length ? <svg className="research-timeline" viewBox={`0 0 760 ${Math.max(100, BANDS.length * 28 + 30)}`} role="img" aria-label="Observation dates grouped by detector band">
@@ -309,6 +375,6 @@ export function ResearchPortal() {
       <p className="research-note">Detector images have wavelength that varies across the focal plane. FITS cutouts retain image, quality flags, variance, zodiacal model, PSF and wavelength metadata. The SPHEREx Explorer provides an interactive image view.</p>
     </section>}
     <SquadPanel field={{ ra: Number(ra), dec: Number(dec), fov: Number(fov), bands, frames: selectedFrames }} onOpenJob={loadField} />
-    <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. For scientific photometry, use the released variance, pixel flags, PSF and spectral WCS products; a frame list alone is not a calibrated light curve.</p>
+    <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. Import the official IRSA Spectrophotometry VOTable for quality-gated source measurements; an archive frame list alone is not a calibrated light curve. Image comparison and time-coherent spectra remain disabled pending their validation paths.</p>
   </div>
 }
