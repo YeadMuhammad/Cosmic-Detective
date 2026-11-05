@@ -10,10 +10,11 @@ import { buildLightCurve, lightCurveGroups, phaseFold } from '../lib/spherex-ser
 import { loadSpherexRegistry, targetCapabilities, type SpherexRegistry } from '../lib/registry'
 import snapshot from '../../data/spherex/manifest.json'
 import type { SnapshotTile } from '../lib/spherex'
+import { requestProcessing } from '../lib/processing'
 
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'] as const
 const WAVE: Record<string, string> = { D1: '0.75–1.09 µm', D2: '1.10–1.62 µm', D3: '1.63–2.41 µm', D4: '2.42–3.82 µm', D5: '3.83–4.41 µm', D6: '4.42–5.00 µm' }
-type Frame = { id: string; band: string; date: string; time: number; url: string; cutout: string; obs: string; release: string }
+type Frame = { id: string; band: string; date: string; time: number; url: string; cutout: string; obs: string; release: string; collection: string; processingRelease: string }
 const COLLECTIONS = ['spherex_qr3', 'spherex_qr2'] as const
 const DEMO_FIELDS = [
   { label: 'IRSA sample field', ra: '156.09328159', dec: '-41.64466331' },
@@ -94,8 +95,92 @@ function cachedFrames(ra: number, dec: number, fov: number, bands: string[]): Fr
     cutout.searchParams.set('center', `${ra},${dec}`)
     cutout.searchParams.set('size', String(radius))
     const time = Number.isFinite(item.mjd) ? (item.mjd! - 40587) * 86400000 : Date.parse(item.date ?? '')
-    return { id: item.obsId ?? `${epoch}-${tile.ra}-${tile.dec}`, band: item.band ?? 'unknown', date: item.date ?? 'Date unavailable', time, url: item.sourceUrl, cutout: cutout.toString(), obs: item.obsId ?? 'Cached observation', release: 'cached-live' }
+    return { id: item.obsId ?? `${epoch}-${tile.ra}-${tile.dec}`, band: item.band ?? 'unknown', date: item.date ?? 'Date unavailable', time, url: item.sourceUrl, cutout: cutout.toString(), obs: item.obsId ?? 'Cached observation', release: 'cached-live', collection: '', processingRelease: '' }
   }).filter((frame): frame is Frame => !!frame)
+}
+
+type BlinkArtifact = {
+  firstPng: string; secondPng: string; width: number; height: number; pixelScaleArcsec: number
+  sharedStretch: { lowMJySr: number; highMJySr: number; percentiles: number[] }
+  targetPassband: { firstWavelengthUm: number; secondWavelengthUm: number; firstBandwidthUm: number; secondBandwidthUm: number; wavelengthDeltaUm: number; relativeBandwidthDifference: number }
+  semantics: string
+}
+
+function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean }) {
+  const [firstId, setFirstId] = useState('')
+  const [secondId, setSecondId] = useState('')
+  const [artifact, setArtifact] = useState<BlinkArtifact | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('Choose two matching exposures, then register them on the worker.')
+  const [showFirst, setShowFirst] = useState(true)
+  const first = frames.find((frame) => frameKey(frame) === firstId) ?? frames[0]
+  const references = first ? frames.filter((frame) => frameKey(frame) !== frameKey(first)
+    && frame.band === first.band && frame.collection === first.collection
+    && frame.processingRelease === first.processingRelease && Number.isFinite(frame.time)) : []
+  const second = references.find((frame) => frameKey(frame) === secondId) ?? references[0]
+  useEffect(() => {
+    if (!artifact) return
+    const timer = window.setInterval(() => setShowFirst((value) => !value), 700)
+    return () => window.clearInterval(timer)
+  }, [artifact])
+  const run = async () => {
+    if (!first || !second || cached) return
+    setBusy(true); setArtifact(null)
+    try {
+      setMessage('Submitting matched cutouts to the SPHEREx registration worker…')
+      const initial = await requestProcessing('blink-pair', {
+        collection: first.collection,
+        obsId: first.id,
+        detector: first.band,
+        release: first.processingRelease,
+        ra, dec, sizeDeg,
+        cutoutUrl: first.cutout,
+        params: {
+          referenceCutoutUrl: second.cutout,
+          referenceObsId: second.id,
+          referenceDetector: second.band,
+          referenceRelease: second.processingRelease,
+          referenceCollection: second.collection,
+          pixelScaleArcsec: '6.2',
+          maxWavelengthDeltaUm: '0.02',
+          maxBandwidthFraction: '0',
+        },
+      })
+      if (initial.state === 'unavailable') throw new Error(initial.reason)
+      let job = initial
+      for (let attempt = 0; attempt < 360; attempt++) {
+        if (job.state === 'unavailable') throw new Error(job.reason)
+        if (job.state === 'available' && job.resultUrl) break
+        if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
+        setMessage(`Registering matched images on the worker… (${Math.floor((attempt + 1) * 5 / 60)} min)`)
+        await new Promise((resolve) => window.setTimeout(resolve, 5000))
+        const response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`)
+        if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
+        job = await response.json() as typeof job
+      }
+      if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Registration did not produce an image pair.')
+      const resultResponse = await fetch(job.resultUrl)
+      if (!resultResponse.ok) throw new Error(`Registered product download failed (${resultResponse.status}).`)
+      const result = await resultResponse.json() as BlinkArtifact
+      if (!result.firstPng?.startsWith('data:image/png;base64,') || !result.secondPng?.startsWith('data:image/png;base64,')) throw new Error('Worker returned an invalid registered-image product.')
+      setArtifact(result); setMessage('WCS registration complete. Visual blinking only; this is not a detection or flux-difference result.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Image registration failed.')
+    } finally { setBusy(false) }
+  }
+  if (cached) return <section className="research-results"><p>Cached demonstration cutouts do not include validated target-pixel wavelength metadata. Search the live archive to run a scientifically matched blink.</p></section>
+  return <section className="research-results" aria-label="Registered SPHEREx blink comparator">
+    <div className="panel-title mono">REGISTERED BLINK · VISUAL COMPARISON</div>
+    <p>Frames are eligible only when detector, QR collection, and processing release match. The worker checks target-pixel WCS-WAVE, reprojects both IMAGE planes to one target-centered sky grid, and applies one shared stretch. Image flags are not overlaid and blinking alone is not evidence of a discovery.</p>
+    <div className="research-blink-controls">
+      <label>First exposure<select value={first ? frameKey(first) : ''} onChange={(event) => { setFirstId(event.target.value); setSecondId(''); setArtifact(null) }}>{frames.filter((frame) => frame.collection && frame.processingRelease).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}</select></label>
+      <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
+      <button type="button" onClick={() => void run()} disabled={busy || !first || !second}>{busy ? 'Registering…' : 'Register and blink'}</button>
+    </div>
+    <p className="research-status" role="status">{message}</p>
+    {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
+      <p className="research-note">Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
+  </section>
 }
 
 function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () => void; onReady: () => void }) {
@@ -160,7 +245,7 @@ export function ResearchPortal() {
   const [bands, setBands] = useState<string[]>([...BANDS]), [frames, setFrames] = useState<Frame[]>([])
   const [activeKey, setActiveKey] = useState('')
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
-  const [view, setView] = useState<'bands' | 'raw'>('bands')
+  const [view, setView] = useState<'bands' | 'raw' | 'blink'>('bands')
   const [sourceMode, setSourceMode] = useState<'live' | 'cached'>(initial.source)
   const [cachedTarget, setCachedTarget] = useState('')
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
@@ -185,6 +270,9 @@ export function ResearchPortal() {
   const selectedRegistry = registry?.targets[registryTarget] ?? null
   const registryCapabilities = useMemo<Capabilities | null>(() => (selectedRegistry ? targetCapabilities(selectedRegistry) : null), [selectedRegistry])
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
+  const blinkFrames = useMemo(() => selectedFrames.filter((frame) => frame.collection && frame.processingRelease
+    && selectedFrames.some((other) => frameKey(other) !== frameKey(frame) && other.band === frame.band
+      && other.collection === frame.collection && other.processingRelease === frame.processingRelease)), [selectedFrames])
   const activeIRSAResult = coordinateMatches(irsaResult, ra, dec) ? irsaResult : null
   const fitQualityLimit = maxFitQuality === '' ? Infinity : Number(maxFitQuality)
   const validFitQualityLimit = maxFitQuality === '' || (Number.isFinite(fitQualityLimit) && fitQualityLimit >= 0)
@@ -229,7 +317,13 @@ export function ResearchPortal() {
   const phaseCapability = periodResult?.available
     ? { state: 'available' as const, reason: 'Validated same-channel photometry spans at least two trial-period cycles.' }
     : { state: 'unavailable' as const, reason: phaseReason }
-  const analysisCapabilities = { ...capabilities, phaseFold: phaseCapability }
+  const analysisCapabilities = {
+    ...capabilities,
+    blink: blinkFrames.length >= 2
+      ? { state: 'available' as const, reason: 'A live pair shares detector, QR collection, and processing release; the worker will still validate target-pixel wavelength and bandwidth before display.' }
+      : { state: 'unavailable' as const, reason: 'No live pair shares detector, QR collection, and processing release.' },
+    phaseFold: phaseCapability,
+  }
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
   const currentKey = activeFrame ? frameKey(activeFrame) : ''
   const activeIndex = activeFrame ? selectedFrames.findIndex((f) => frameKey(f) === frameKey(activeFrame)) : -1
@@ -316,7 +410,14 @@ export function ResearchPortal() {
         try { cutout = new URL(source) } catch { return null }
         if (cutout.protocol !== 'https:' && cutout.protocol !== 'http:') return null
         cutout.searchParams.set('center', `${r},${d}`); cutout.searchParams.set('size', String(size / 60))
-        return { id, band, date, time, url: source, cutout: cutout.toString(), obs: row.obs_id || id, release }
+        const basename = decodeURIComponent(cutout.pathname.split('/').pop() ?? '')
+        const productMatch = /^level2_(.+?)(D[1-6])_spx_(l2[a-z]\d*-.+?)\.fits$/i.exec(basename)
+        const collection = /spherex_(qr\d+)/i.exec(release)?.[1]?.toLowerCase() ?? ''
+        return {
+          id: productMatch?.[1] ?? row.obs_id ?? id,
+          band, date, time, url: source, cutout: cutout.toString(), obs: row.obs_id || id,
+          release: release || 'unknown', collection, processingRelease: productMatch?.[3] ?? '',
+        }
       }).filter((f): f is Frame => !!f)
       found.sort((a, b) => (a.release === 'spherex_qr3' ? -1 : 1) - (b.release === 'spherex_qr3' ? -1 : 1) || (Number.isFinite(a.time) && Number.isFinite(b.time) ? a.time - b.time : 0))
       const seen = new Set<string>()
@@ -409,11 +510,11 @@ export function ResearchPortal() {
       <p className="research-note">{selectedRegistry.wavelengthTier === 'wcs-wave'
         ? `Wavelength evaluated at the target pixel (WCS-WAVE): ${selectedRegistry.wavelengthAtTargetUm} µm for at least one exposure.`
         : registry.wavelengthPolicy.planeBounds}</p>
-      <p className="research-note">Registry capabilities are metadata-derived acceptance expectations, not claims about this sky position; scientific comparison tools stay disabled in browse mode.</p>
+      <p className="research-note">Registry capabilities are metadata-derived acceptance expectations, not claims about this sky position. Blink is enabled only for live pairs that pass backend WCS and target-passband checks; Difference remains disabled.</p>
     </section>}
     <div className={`research-status ${error ? 'error' : ''}`} role="status">{status}</div>
     <div className="research-tools"><div className="research-tabs">
-      <button type="button" disabled title="Requires registered multi-epoch images." >Blink Comparator</button>
+      <button type="button" className={view === 'blink' ? 'on' : ''} disabled={blinkFrames.length < 2} title={blinkFrames.length < 2 ? 'Requires two frames from the same detector, collection, and processing release.' : 'Register two matching frames on the SPHEREx worker.'} onClick={() => setView('blink')}>Blink Comparator</button>
       <button type="button" disabled title="Requires registered multi-epoch images." >Difference</button>
       <button type="button" className={view === 'bands' ? 'on' : ''} onClick={() => setView('bands')}>Bands</button>
       <button type="button" disabled={analysisCapabilities.lightcurve.state !== 'available'} title={analysisCapabilities.lightcurve.reason} onClick={() => setAnalysisTool('lightcurve')}>Light Curve</button>
@@ -427,9 +528,9 @@ export function ResearchPortal() {
           ['lightcurve', 'Light Curve', 'Light Curve'],
           ['phaseFold', 'Phase fold', 'Phase fold'],
           ['spectrum', 'Spectrum', 'Spectrum'],
-        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => setAnalysisTool(id as 'lightcurve' | 'phaseFold')}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}
+        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{id === 'blink' && analysisCapabilities.blink.state === 'available' ? <button type="button" onClick={() => setView('blink')}>{button}</button> : analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => setAnalysisTool(id as 'lightcurve' | 'phaseFold')}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}
       </div>
-      <span className="tool-unavailable">Browse images remain display-only. Photometry tools need an imported, validated IRSA result. Pixel comparisons remain disabled pending image-level validation.</span>
+      <span className="tool-unavailable">Blink requires a live, same-detector, same-release pair registered by the worker. Difference remains disabled pending PSF, background, flags, and noise validation. Photometry tools need validated measurements.</span>
     </div>
     {analysisTool && activeIRSAResult && analysisCapabilities[analysisTool].state === 'available' && <section className="research-results" aria-label={`${analysisTool} analysis`}>
       <div className="panel-title mono">VALIDATED IRSA DATA · {analysisTool.toUpperCase()}</div>
@@ -446,7 +547,8 @@ export function ResearchPortal() {
         {periodResult?.available ? <><p>Trial-period fold · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability; it also omits shared calibration covariance.</p><MeasurementPlot label="SPHEREx trial-period phase fold with weighted flux uncertainties" points={periodResult.value.bins.map((bin) => ({ x: bin.phase, y: bin.flux, error: bin.uncertainty }))} xLabel="Phase (cycle)" yLabel="Flux (µJy)" /><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
       </>}
     </section>}
-    {selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
+    {view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} />}
+    {view !== 'blink' && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}
       {view === 'raw' && <div className="timeline-panel"><p>Each point is an archive image observation, not source brightness. Select a point or its row to inspect the file.</p>{timePoints.length ? <svg className="research-timeline" viewBox={`0 0 760 ${Math.max(100, BANDS.length * 28 + 30)}`} role="img" aria-label="Observation dates grouped by detector band">
         {BANDS.filter((b) => bands.includes(b)).map((band) => { const lane = BANDS.indexOf(band); return <g key={band}><text x="8" y={32 + lane * 28}>{band}</text><line x1="72" y1={28 + lane * 28} x2="744" y2={28 + lane * 28} /><title>{band} observation dates</title></g> })}
@@ -462,6 +564,6 @@ export function ResearchPortal() {
       <p className="research-note">Detector images have wavelength that varies across the focal plane. FITS cutouts retain image, quality flags, variance, zodiacal model, PSF and wavelength metadata. The SPHEREx Explorer provides an interactive image view.</p>
     </section>}
     <SquadPanel field={{ ra: Number(ra), dec: Number(dec), fov: Number(fov), bands, frames: selectedFrames }} onOpenJob={loadField} />
-    <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. Import the official IRSA Spectrophotometry VOTable for quality-gated source measurements; an archive frame list alone is not a calibrated light curve. Image comparison and time-coherent spectra remain disabled pending their validation paths.</p>
+    <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. Registered blink is visual-only and requires the processing worker; a difference image and time-coherent spectrum remain disabled until their science validation paths are complete. An archive frame list alone is not a calibrated light curve.</p>
   </div>
 }

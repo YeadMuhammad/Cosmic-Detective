@@ -36,6 +36,7 @@ from lib.cache_keys import upload_path
 from lib.jobs import Jobs, RestError
 from lib.cutouts import NotFits, PayloadTooLarge
 from lib.photometry import PhotometryError, extract_source_photometry
+from lib.blink import register_blink_pair
 
 BUCKET = os.environ.get("SPHEREX_BUCKET", "spherex-products")
 POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "5"))
@@ -52,7 +53,7 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     if not isinstance(job.get("params", {}), dict):
         raise ValueError("job params must be an object")
     product = str(job.get("product") or "")
-    if product not in ("cutout-render", "photometry"):
+    if product not in ("cutout-render", "photometry", "blink-pair"):
         raise ValueError(f"unsupported product: {product!r}")
     if product == "cutout-render":
         raise RuntimeError("cutout-render not implemented")
@@ -67,7 +68,13 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         raise RuntimeError("job is missing cache_key or cutout_url")
 
     # 1. Verify cutout support FIRST — never accept a 'cutout' that is a full MEF.
-    if product == "photometry":
+    if product == "blink-pair":
+        reference_url = str((job.get("params") or {}).get("referenceCutoutUrl") or "")
+        if not reference_url:
+            raise RuntimeError("blink-pair job is missing its reference cutout")
+        body, verified = cutouts.download_verified_cutout(cutout_url)
+        reference_body, reference_verified = cutouts.download_verified_cutout(reference_url)
+    elif product == "photometry":
         body, verified = cutouts.download_verified_cutout(cutout_url)
     else:
         body = None
@@ -75,7 +82,18 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     print(f"  {job.get('id', '?')}: cutout verified ({verified['bytes']} bytes, {verified['headerKeywords']})")
 
     # 2. Build the product only after the bounded cutout has been verified.
-    if product == "photometry":
+    if product == "blink-pair":
+        params = job.get("params") or {}
+        payload_object = register_blink_pair(
+            body,
+            reference_body,
+            float(job["ra"]),
+            float(job["dec"]),
+            float(job["size_deg"]),
+            params,
+        )
+        payload_object["cutouts"] = {"first": verified, "second": reference_verified}
+    elif product == "photometry":
         payload_object = extract_source_photometry(
             body,
             float(job["ra"]),

@@ -12,6 +12,8 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
 
 - **Claim atomically.** One job at a time via `POST /rpc/claim_processing_job`
   (SQL `for update skip locked`, see `supabase/migrations/20261105000000_processing_jobs.sql`).
+  Apply `supabase/migrations/20261106000000_blink_pair_product.sql` to allow the
+  `blink-pair` product before submitting registered comparison jobs.
 - **Verify cutout support first.** Every download goes through bounded
   `verify_cutout_support()`; a response bigger than the cap, or anything that
   is not FITS, fails the job with that reason. Full MEFs are never downloaded.
@@ -27,6 +29,10 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
 ## Product stages today
 
 - `cutout-render`: verify-cutout → read-image (astropy) → stretch-render.
+- `blink-pair`: downloads two bounded cutouts, checks target-pixel WCS-WAVE,
+  reprojects their IMAGE planes to a shared target-centered TAN grid, and
+  returns both epochs with a shared display stretch. This is visual comparison
+  only: flags are not overlaid and it is not a difference or detection product.
 - `photometry`: verifies the cutout, then fails closed with the missing science
   calibration requirements. No photometry artifact is currently published.
 

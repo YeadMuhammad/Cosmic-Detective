@@ -52,6 +52,13 @@ def staged_products(product: str, job: Mapping[str, Any]) -> list:
             ("read-planes", "IMAGE/FLAGS/VARIANCE/ZODI/PSF extensions at the target pixel"),
             ("extract", "PSF/ePSF fit where valid; aperture extraction as documented fallback; ZODI never subtracted twice"),
         ]
+    if product == "blink-pair":
+        return [
+            ("verify-cutouts", "bounded GET of both IRSA cutouts, FITS-sniffed and byte-capped"),
+            ("match-passband", "evaluate WCS-WAVE at the target in both observations and enforce configured tolerance"),
+            ("register", "reproject IMAGE planes to one target-centered TAN sky grid"),
+            ("render", "render both epochs using one shared intensity stretch"),
+        ]
     raise KeyError(f"unknown product: {product!r}")
 
 
@@ -61,6 +68,8 @@ def product_dependencies(product: str) -> list:
         names += ["astropy", "numpy"]
     elif product == "photometry":
         names += ["astropy", "numpy"]
+    elif product == "blink-pair":
+        names += ["astropy", "numpy", "reproject"]
     return sorted(set(names))
 
 

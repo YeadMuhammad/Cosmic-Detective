@@ -7,13 +7,14 @@
  */
 import type { Capability } from './spherex'
 
-export type ProcessingProduct = 'cutout-render' | 'photometry'
+export type ProcessingProduct = 'cutout-render' | 'photometry' | 'blink-pair'
 
 export interface ProcessingCapabilityRecord {
   state: 'available' | 'unavailable' | 'computing'
   reason: string
   jobId?: string
   resultPath?: string
+  resultUrl?: string
   cacheKey?: string
 }
 

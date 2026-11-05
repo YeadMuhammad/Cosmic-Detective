@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { assertGoldenCacheKeys, capabilityForJob, cacheKey, rateLimitDecision, RATE_LIMIT } from '../lib/processing.mjs'
 
-const PRODUCTS = new Set(['cutout-render', 'photometry'])
+const PRODUCTS = new Set(['cutout-render', 'photometry', 'blink-pair'])
 const DETECTOR_RE = /^D[1-6]$/
 const COLLECTION_RE = /^qr\d+$/
 const RELEASE_RE = /^l2[a-z]\d*-[A-Za-z0-9.-]+$/
@@ -77,20 +77,34 @@ function validation(requestBody) {
   if (!Number.isFinite(Number(dec)) || Number(dec) < -90 || Number(dec) > 90) return 'Dec must be −90–90 degrees.'
   if (!Number.isFinite(Number(sizeDeg)) || Number(sizeDeg) <= 0 || Number(sizeDeg) > 0.5) return 'sizeDeg must be > 0 and at most 0.5 degrees.'
   if (body.params !== undefined && (typeof body.params !== 'object' || body.params === null || Array.isArray(body.params))) return 'params must be an object of strings/ints/bools.'
-  try {
-    const parsed = new URL(cutoutUrl)
-    if (parsed.protocol !== 'https:' || parsed.hostname !== 'irsa.ipac.caltech.edu' || parsed.port || parsed.username || parsed.password || !parsed.pathname.startsWith('/ibe/data/spherex/')) return 'cutoutUrl must be an IRSA SPHEREx cutout URL.'
+  const validateCutout = (value, expectedCollection, expectedObsId, expectedDetector, expectedRelease) => {
+    let parsed
+    try { parsed = new URL(value) } catch { return false }
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'irsa.ipac.caltech.edu' || parsed.port || parsed.username || parsed.password || !parsed.pathname.startsWith('/ibe/data/spherex/')) return false
     const centerValues = parsed.searchParams.getAll('center')
     const sizeValues = parsed.searchParams.getAll('size')
     const center = centerValues.length === 1 && sizeValues.length === 1
       ? centerValues[0].match(/^\s*(-?\d+(?:\.\d+)?)d?\s*,\s*(-?\d+(?:\.\d+)?)d?\s*$/i)
       : null
     const size = Number(parsed.searchParams.get('size'))
-    const expectedFile = `/level2_${obsId}${detector}_spx_${release}.fits`
-    if (!parsed.pathname.includes(`/spherex/${collection}/`) || !parsed.pathname.endsWith(expectedFile)
-      || !center || Number(center[1]) !== Number(ra) || Number(center[2]) !== Number(dec) || size !== Number(sizeDeg)) return 'cutoutUrl must match the requested observation, detector, release, position, and size.'
-    cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params: body.params ?? {} })
-  } catch { return 'Processing request parameters are invalid.' }
+    const expectedFile = `/level2_${expectedObsId}${expectedDetector}_spx_${expectedRelease}.fits`
+    return parsed.pathname.includes(`/spherex/${expectedCollection}/`) && parsed.pathname.endsWith(expectedFile)
+      && center && Number(center[1]) === Number(ra) && Number(center[2]) === Number(dec) && size === Number(sizeDeg)
+  }
+  if (!validateCutout(cutoutUrl, collection, obsId, detector, release)) return 'cutoutUrl must match the requested observation, detector, release, position, and size.'
+  if (product === 'blink-pair') {
+    const p = body.params ?? {}
+    if (typeof p.referenceCutoutUrl !== 'string' || !OBS_ID_RE.test(String(p.referenceObsId ?? ''))
+      || !DETECTOR_RE.test(String(p.referenceDetector ?? '')) || !RELEASE_RE.test(String(p.referenceRelease ?? ''))
+      || p.referenceCollection !== collection || p.referenceDetector !== detector || p.referenceRelease !== release) {
+      return 'Blink pairs must use the same detector, collection, and processing release and include a valid reference cutout.'
+    }
+    if (!validateCutout(p.referenceCutoutUrl, collection, p.referenceObsId, detector, release)) return 'referenceCutoutUrl must match the requested target and reference observation.'
+    if (!['0', '0.001', '0.002', '0.005', '0.01', '0.02'].includes(String(p.maxWavelengthDeltaUm ?? '0'))) return 'maxWavelengthDeltaUm must be a supported conservative tolerance in microns.'
+    if (String(p.maxBandwidthFraction ?? '0') !== '0') return 'Blink pairs currently require matching target-pixel bandwidths.'
+  }
+  try { cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params: body.params ?? {} }) }
+  catch { return 'Processing request parameters are invalid.' }
   return null
 }
 
@@ -160,13 +174,21 @@ async function jobStatus(url, supabase) {
   if (cacheKeyValue) {
     if (!/^spherex\/v1\//.test(cacheKeyValue)) return fail('cacheKey must be a spherex/v1 product key.')
     const { data } = await supabase.from('processing_jobs').select('*').eq('cache_key', cacheKeyValue).maybeSingle()
-    return json(capabilityForJob(data))
+    return json(await capabilityWithResult(data, supabase))
   }
   if (jobId) {
     const { data } = await supabase.from('processing_jobs').select('*').eq('id', jobId).maybeSingle()
-    return json(capabilityForJob(data))
+    return json(await capabilityWithResult(data, supabase))
   }
   return fail('Provide jobId or cacheKey to look up a processing job.')
+}
+
+async function capabilityWithResult(job, supabase) {
+  const capability = capabilityForJob(job)
+  if (capability.state !== 'available' || !job.result_path) return capability
+  const { data, error } = await supabase.storage.from('spherex-products').createSignedUrl(job.result_path, 600)
+  if (error || !data?.signedUrl) return { state: 'unavailable', reason: 'The registered image product is ready, but its temporary result link could not be created.', jobId: job.id }
+  return { ...capability, resultUrl: data.signedUrl }
 }
 
 export default async (request) => {
