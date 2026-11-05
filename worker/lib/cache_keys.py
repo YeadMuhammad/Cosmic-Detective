@@ -27,9 +27,10 @@ Components:
   paramsHash   12-hex SHA-256 of canonical_params(product, params) — the last
                defence against cache collisions across processing parameters.
 
-canonical_params dumps JSON with sorted keys and (',',':') separators; float
-values are NOT allowed inside params (use fixed-decimal geometry or pre-format
-strings) so Python and JavaScript never disagree about float rendering.
+canonical_params dumps JSON with sorted keys and (',',':') separators; flat
+primitive params only — floats and nested structures are rejected because
+Python (recursive sort_keys) and JavaScript (insertion order) would otherwise
+canonicalize them differently.
 """
 from __future__ import annotations
 
@@ -62,11 +63,18 @@ def fixed(value: Any, decimals: int, name: str) -> str:
 
 
 def canonical_params(product: str, params: Mapping[str, Any]) -> str:
-    """Stable canonical JSON of the processing parameters for a product."""
+    """Stable canonical JSON of the processing parameters for a product.
+
+    Params must be flat (string, int, bool or None) — no floats and no nested
+    structures, because Python (recursive sort_keys) and JavaScript (insertion
+    order) would otherwise canonicalize them differently.
+    """
     merged = {"product": product}
     for key, value in (params or {}).items():
-        if isinstance(value, float):
-            raise ValueError(f"params[{key}] must be a string, int or bool (got float)")
+        if isinstance(value, (dict, list, tuple)) or isinstance(value, float):
+            raise ValueError(f"params[{key}] must be a flat string, int, bool or None")
+        if value is not None and not isinstance(value, (str, int, bool)):
+            raise ValueError(f"params[{key}] must be a flat string, int, bool or None")
         if key == "product":
             raise ValueError("params must not override 'product'")
         merged[key] = value

@@ -10,7 +10,8 @@
     "fetch-sky": "node scripts/fetch-sky.mjs",
     "fetch-spherex": "node scripts/fetch-spherex.mjs",
     "spherex-registry": "node scripts/build-spherex-registry.mjs",
-    "test": "node --test scripts/acceptance.test.mjs"
+    "test": "node --test scripts/acceptance.test.mjs scripts/processing.test.mjs",
+    "test:worker": "python -m unittest discover -s worker/tests"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",

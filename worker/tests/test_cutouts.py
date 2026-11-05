@@ -77,6 +77,8 @@ class QueueWireContract(unittest.TestCase):
             jobs.Jobs("", "")
         with self.assertRaises(ValueError):
             jobs.Jobs("https://example.supabase.co", "")
+        client = jobs.Jobs("https://example.supabase.co", "service-key")
+        self.assertEqual(client.headers["Authorization"], "Bearer service-key")
 
 
 class ProductStaging(unittest.TestCase):
@@ -86,11 +88,17 @@ class ProductStaging(unittest.TestCase):
             self.assertEqual(stages[0], "verify-cutout", f"{product} must verify cutout support before any full download")
 
     def test_dependency_reason_lists_missing_names(self) -> None:
-        reason = products.dependency_reason({"astropy": True, "photutils": False, "supabase": False})
+        reason = products.dependency_reason({"astropy": True, "photutils": False})
         self.assertIn("photutils", reason)
-        self.assertIn("supabase", reason)
         self.assertNotIn("astropy", reason)
         self.assertIsNone(products.dependency_reason({"astropy": True, "numpy": True}))
+
+    def test_worker_dependency_lists_match_requirements(self) -> None:
+        self.assertEqual(products.product_dependencies("cutout-render"), ["astropy", "numpy"])
+        self.assertEqual(
+            products.product_dependencies("photometry"),
+            ["astropy", "numpy", "photutils", "reproject"],
+        )
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
 from typing import Any, Mapping, Optional
 
 QUEUE_TABLE = "processing_jobs"
@@ -74,7 +75,7 @@ class Jobs:
         self.timeout = timeout
         self.headers = {
             "apikey": service_key,
-            "Authorization": f"Bearer {service_key}",
+            "Authorization": "Bearer " + service_key,
             "Content-Type": "application/json",
         }
 
@@ -103,14 +104,14 @@ class Jobs:
         self.send(postgrest_patch(job_id, {
             "status": "completed",
             "result_path": result_path,
-            "finished_at": "now()",
+            "finished_at": datetime.now(timezone.utc).isoformat(),
         }))
 
     def fail(self, job_id: str, reason: str) -> None:
         self.send(postgrest_patch(job_id, {
             "status": "failed",
             "error_reason": reason[:500],
-            "finished_at": "now()",
+            "finished_at": datetime.now(timezone.utc).isoformat(),
         }))
 
 

@@ -56,7 +56,7 @@ def staged_products(product: str, job: Mapping[str, Any]) -> list:
 
 
 def product_dependencies(product: str) -> list:
-    names = ["supabase"]
+    names = []
     if product == "cutout-render":
         names += ["astropy", "numpy"]
     elif product == "photometry":
