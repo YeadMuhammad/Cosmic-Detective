@@ -8,7 +8,7 @@ export interface ImportedIRSAResult {
   source: 'IRSA SPHEREx Spectrophotometry Tool'
 }
 
-const requiredColumns = ['wavelength', 'flux', 'flux_err', 'flux_bkg', 'lambda_width', 'flags', 'fit_ql', 'mjd', 'data_collection', 'det_id', 'lvf_id', 'ra', 'dec']
+const requiredColumns = ['wavelength', 'flux', 'flux_err', 'flux_bkg', 'lambda_width', 'flags', 'fit_ql', 'mjd', 'data_collection', 'det_id', 'lvf_id', 'deep_flg', 'ra', 'dec']
 const EXPECTED_UNITS: Record<string, string[]> = {
   wavelength: ['um', 'micron', 'microns'],
   flux: ['ujy'],
@@ -23,6 +23,12 @@ function finite(value: string, field: string): number {
   const parsed = Number(value)
   if (!value || !Number.isFinite(parsed)) throw new Error(`IRSA result has an invalid ${field} value.`)
   return parsed
+}
+
+function boolean(value: string, field: string): boolean {
+  if (/^(true|t|1)$/i.test(value)) return true
+  if (/^(false|f|0)$/i.test(value)) return false
+  throw new Error(`IRSA result has an invalid ${field} value.`)
 }
 
 function unitsMatch(field: string, unit: string | null): boolean {
@@ -86,6 +92,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const release = get('data_collection').toLowerCase()
     const detector = get('det_id').toUpperCase()
     const exposure = get('lvf_id')
+    const deepField = boolean(get('deep_flg'), 'deep-field indicator')
     if (!(wavelength > 0 && width > 0 && uncertainty > 0 && Number.isSafeInteger(flags) && flags >= 0 && fitQuality >= 0)) {
       throw new Error('IRSA VOTable contains physically invalid wavelength, bandwidth, uncertainty, flags, or fit quality.')
     }
@@ -104,7 +111,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const usable = isAnalysisEligibleFlags(flags)
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
-    const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure }
+    const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure, deepField }
     const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, backgroundFluxMJySr, usable, flags, fitQuality }
     const spectrum: SourceSpectrumPoint = { dataOrigin: 'live', provenance, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })

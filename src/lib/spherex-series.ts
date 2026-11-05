@@ -41,6 +41,7 @@ export interface LightCurveGroup {
   release: 'qr2' | 'qr3'
   wavelength: number
   bandwidth: number
+  deepField: boolean
   points: SourceMeasurement[]
   baselineMs: number
 }
@@ -51,17 +52,17 @@ export function lightCurveGroups(frames: ObservationMetadata[], minimumPoints = 
     const measurement = frame.measurement
     if (!isUsableMeasurement(measurement)) continue
     if (frame.band !== measurement.band || frame.release !== measurement.provenance.release || frame.time !== measurement.time) continue
-    const key = [measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4)].join(':')
+    const key = [measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4), measurement.provenance.deepField].join(':')
     const points = groups.get(key)
     if (points) points.push(measurement)
     else groups.set(key, [measurement])
   }
   return [...groups.entries()].flatMap(([key, unsorted]) => {
-    const [band, release, wavelength, bandwidth] = key.split(':')
+    const [band, release, wavelength, bandwidth, deepField] = key.split(':')
     const points = unsorted.sort((a, b) => a.time - b.time)
     const baselineMs = points[points.length - 1].time - points[0].time
     if (points.length < minimumPoints || !Number.isFinite(baselineMs) || baselineMs <= 0) return []
-    return [{ band, release: release as 'qr2' | 'qr3', wavelength: Number(wavelength), bandwidth: Number(bandwidth), points, baselineMs }]
+    return [{ band, release: release as 'qr2' | 'qr3', wavelength: Number(wavelength), bandwidth: Number(bandwidth), deepField: deepField === 'true', points, baselineMs }]
   })
 }
 
@@ -72,13 +73,16 @@ export function buildLightCurve(
   release?: 'qr2' | 'qr3',
   wavelength?: number,
   bandwidth?: number,
+  deepField?: boolean,
 ): SeriesResult<ValidatedLightCurve> {
   const groups = lightCurveGroups(frames, minimumPoints).filter((group) => group.band === band
     && (!release || group.release === release)
     && (wavelength === undefined || group.wavelength.toFixed(4) === wavelength.toFixed(4))
-    && (bandwidth === undefined || group.bandwidth.toFixed(4) === bandwidth.toFixed(4)))
+    && (bandwidth === undefined || group.bandwidth.toFixed(4) === bandwidth.toFixed(4))
+    && (deepField === undefined || group.deepField === deepField))
+  if (groups.length > 1) return { available: false, reason: 'Multiple exposure classes match; select wide-survey or Deep Field data explicitly.' }
   const group = groups[0]
-  if (!group) return { available: false, reason: `Requires at least ${minimumPoints} quality-approved measurements with matching detector, release, effective wavelength, and bandwidth.` }
+  if (!group) return { available: false, reason: `Requires at least ${minimumPoints} quality-approved measurements with matching detector, release, exposure class, effective wavelength, and bandwidth.` }
   return { available: true, value: { dataOrigin: 'live', ...group } }
 }
 

@@ -4,7 +4,7 @@ export type DataOrigin = 'live' | 'simulated'
 
 export interface SourceMeasurement {
   dataOrigin: 'live'
-  provenance: { provider: 'irsa-spherex-photometry'; release: 'qr2' | 'qr3'; detector: string; exposureId: string }
+  provenance: { provider: 'irsa-spherex-photometry'; release: 'qr2' | 'qr3'; detector: string; exposureId: string; deepField: boolean }
   band: string
   time: number
   wavelength: number
@@ -20,7 +20,7 @@ export interface SourceMeasurement {
 
 export interface SourceSpectrumPoint {
   dataOrigin: 'live'
-  provenance: { provider: 'irsa-spherex-photometry'; release: 'qr2' | 'qr3'; detector: string; exposureId: string }
+  provenance: { provider: 'irsa-spherex-photometry'; release: 'qr2' | 'qr3'; detector: string; exposureId: string; deepField: boolean }
   wavelength: number
   bandwidth: number
   flux: number
@@ -77,7 +77,8 @@ export function isUsableMeasurement(measurement: SourceMeasurement | null | unde
     && measurement.provenance?.provider === 'irsa-spherex-photometry'
     && ['qr2', 'qr3'].includes(measurement.provenance.release)
     && /^D[1-6]$/.test(measurement.provenance.detector) && measurement.band === measurement.provenance.detector
-    && !!measurement.provenance.exposureId && Number.isFinite(measurement.fitQuality) && measurement.fitQuality >= 0
+    && !!measurement.provenance.exposureId && typeof measurement.provenance.deepField === 'boolean'
+    && Number.isFinite(measurement.fitQuality) && measurement.fitQuality >= 0
     && isAnalysisEligibleFlags(measurement.flags)
     && Number.isFinite(measurement.wavelength) && measurement.wavelength > 0
     && Number.isFinite(measurement.bandwidth) && measurement.bandwidth > 0
@@ -90,7 +91,7 @@ export function isUsableSpectrumPoint(point: SourceSpectrumPoint | null | undefi
   return Boolean(point && point.dataOrigin === 'live' && point.usable
     && point.provenance?.provider === 'irsa-spherex-photometry'
     && ['qr2', 'qr3'].includes(point.provenance.release)
-    && /^D[1-6]$/.test(point.provenance.detector) && !!point.provenance.exposureId
+    && /^D[1-6]$/.test(point.provenance.detector) && !!point.provenance.exposureId && typeof point.provenance.deepField === 'boolean'
     && Number.isFinite(point.fitQuality) && point.fitQuality >= 0
     && isAnalysisEligibleFlags(point.flags)
     && Number.isFinite(point.wavelength) && point.wavelength > 0
@@ -121,12 +122,13 @@ export function capabilitiesFor(frames: ObservationMetadata[]): Capabilities {
     .some((band) => timed.filter((frame) => frame.band === band).length >= 2)
   const measurements = usableMeasurements(frames)
   const measurementGroups = [...new Set(measurements.map((measurement) => [
-    measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4),
+    measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4), measurement.provenance.deepField,
   ].join(':')))]
   const lightCurveGroup = measurementGroups.find((group) => {
-    const [band, release, wavelength, bandwidth] = group.split(':')
+    const [band, release, wavelength, bandwidth, deepField] = group.split(':')
     const points = measurements.filter((measurement) => measurement.band === band && measurement.provenance.release === release
-      && measurement.wavelength.toFixed(4) === wavelength && measurement.bandwidth.toFixed(4) === bandwidth)
+      && measurement.wavelength.toFixed(4) === wavelength && measurement.bandwidth.toFixed(4) === bandwidth
+      && String(measurement.provenance.deepField) === deepField)
     return points.length >= 3 && Math.max(...points.map((point) => point.time)) > Math.min(...points.map((point) => point.time))
   })
   const spectrumPoints = measuredSpectrum(frames)
@@ -137,9 +139,9 @@ export function capabilitiesFor(frames: ObservationMetadata[]): Capabilities {
       : 'No same-channel repeat observations were returned.'),
     difference: unavailable('Requires validated alignment, PSF matching, and quality masks; browse mode does not provide these.'),
     lightcurve: lightCurveGroup
-      ? { state: 'available', reason: `Validated live photometry shares detector, release, wavelength, and bandwidth (${lightCurveGroup.toUpperCase()}).` }
+      ? { state: 'available', reason: `Validated live photometry shares detector, release, exposure class, wavelength, and bandwidth (${lightCurveGroup.toUpperCase()}).` }
       : unavailable(measurements.length
-        ? 'Fewer than three quality-approved measurements share a detector, release, effective wavelength, and bandwidth over a positive time baseline.'
+        ? 'Fewer than three quality-approved measurements share a detector, release, exposure class, effective wavelength, and bandwidth over a positive time baseline.'
         : 'Source photometry has not been extracted from the returned observations.'),
     phaseFold: unavailable('Requires a validated same-channel light curve with uncertainties and enough baseline.'),
     spectrum: unavailable(spectrumPoints.length >= 2

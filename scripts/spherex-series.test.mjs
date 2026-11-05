@@ -7,7 +7,7 @@ import { differenceSignificance, validateComparisonPair, withMotionOffset } from
 
 const liveMeasurement = (band, time, flux = 1) => ({
   dataOrigin: 'live',
-  provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: band, exposureId: `exp-${time}` },
+  provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: band, exposureId: `exp-${time}`, deepField: false },
   band,
   time,
   wavelength: 1.01,
@@ -44,8 +44,8 @@ test('unusable and simulated measurements never enable light curves', () => {
 
 test('spectrum stays unavailable when measurements span ungrouped exposures', () => {
   const frames = [
-    { band: 'D1', release: 'qr3', time: 1, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D1', exposureId: 'exp-1' }, wavelength: 1, bandwidth: 0.1, flux: 2, uncertainty: 0.2, usable: true, flags: 0, fitQuality: 1 }] },
-    { band: 'D2', release: 'qr3', time: 2, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D2', exposureId: 'exp-2' }, wavelength: 2, bandwidth: 0.2, flux: 3, uncertainty: 0.3, usable: true, flags: 0, fitQuality: 1 }] },
+    { band: 'D1', release: 'qr3', time: 1, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D1', exposureId: 'exp-1', deepField: false }, wavelength: 1, bandwidth: 0.1, flux: 2, uncertainty: 0.2, usable: true, flags: 0, fitQuality: 1 }] },
+    { band: 'D2', release: 'qr3', time: 2, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D2', exposureId: 'exp-2', deepField: false }, wavelength: 2, bandwidth: 0.2, flux: 3, uncertainty: 0.3, usable: true, flags: 0, fitQuality: 1 }] },
   ]
   const result = buildSpectrum(frames)
   assert.equal(result.available, false)
