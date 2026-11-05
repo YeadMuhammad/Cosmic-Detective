@@ -27,15 +27,17 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
 ## Product stages today
 
 - `cutout-render`: verify-cutout → read-image (astropy) → stretch-render.
-- `photometry`: verify-cutout → read-planes (IMAGE/FLAGS/VARIANCE/ZODI/PSF;
-  ZODI is the modeled background and is never subtracted twice) → extract
-  (PSF/ePSF where valid, aperture fallback documented per point).
+- `photometry`: verifies the cutout, then fails closed with the missing science
+  calibration requirements. No photometry artifact is currently published.
 
-Native-pixel photometry evaluates the target WCS, selects the target
-wavelength plane from a compatible PSF cube when available, and otherwise
-records an aperture fallback. IMAGE is not modified by ZODI subtraction; the
-result records whether the ZODI plane was present and includes measurement,
-background, and calibration uncertainty components.
+The earlier prototype incorrectly treated PSF cube planes as wavelength
+samples and estimated pixel solid angle from the display WCS. SPHEREx PSF cube
+planes are spatial zones and the PSF models are oversampled. Until the worker
+loads the detector solid-angle map, science-grade CWAVE/CBAND calibrations, and
+fits the correctly selected PSF/ePSF with validated uncertainty propagation,
+photometry requests are marked failed and the portal cannot treat them as
+available measurements. ZODI is a modeled background and must not be
+subtracted twice when extraction is implemented.
 
 ## Run
 

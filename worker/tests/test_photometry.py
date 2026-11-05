@@ -66,34 +66,11 @@ def _cutout(include_spectral_wcs: bool = True, include_psf: bool = False, psf_cu
 
 
 class NativePhotometryTests(unittest.TestCase):
-    def test_extracts_wavelength_and_uncertainty_without_subtracting_zodi(self) -> None:
-        result = extract_source_photometry(_cutout(), 10.0, 20.0, {"calibrationFraction": 0.02})
-        self.assertEqual(result["dataOrigin"], "live")
-        self.assertEqual(result["method"], "aperture")
-        self.assertAlmostEqual(result["wavelengthMicrons"], 1.5)
-        self.assertGreater(result["fluxMjy"], 0)
-        self.assertLess(result["fluxMjy"], 1e-6)
-        self.assertGreater(result["uncertaintyMjy"], 0)
-        self.assertNotIn("zodi", " ".join(result["quality"]["warnings"]).lower())
-        self.assertIn("calibrationMjy", result["uncertainty"])
-
-    def test_flagged_pixels_are_excluded_and_reported(self) -> None:
-        result = extract_source_photometry(_cutout(), 10.0, 20.0)
-        self.assertTrue(result["quality"]["usable"])
-        self.assertIn("flagged pixels were excluded", result["quality"]["warnings"])
-
-    def test_valid_psf_plane_uses_weighted_native_fit(self) -> None:
-        result = extract_source_photometry(_cutout(include_psf=True), 10.0, 20.0)
-        self.assertEqual(result["method"], "psf")
-        self.assertNotIn("valid PSF plane unavailable", result["quality"]["warnings"])
-
-    def test_wavelength_matched_psf_cube_uses_weighted_native_fit(self) -> None:
-        result = extract_source_photometry(_cutout(include_psf=True, psf_cube=True), 10.0, 20.0)
-        self.assertEqual(result["method"], "psf")
-
-    def test_missing_spectral_wcs_is_unavailable(self) -> None:
-        with self.assertRaisesRegex(PhotometryError, "spectral WCS"):
-            extract_source_photometry(_cutout(False), 10.0, 20.0)
+    def test_photometry_fails_closed_without_science_calibrations(self) -> None:
+        for cutout in (_cutout(), _cutout(include_psf=True, psf_cube=True)):
+            with self.subTest(psf="PSF" in str(cutout)):
+                with self.assertRaisesRegex(PhotometryError, "solid-angle map.*CWAVE/CBAND.*PSF/ePSF"):
+                    extract_source_photometry(cutout, 10.0, 20.0)
 
 
 if __name__ == "__main__":

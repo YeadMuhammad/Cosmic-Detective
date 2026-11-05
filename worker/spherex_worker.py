@@ -17,8 +17,9 @@ Env:
   WORKER_ID               identity for claim bookkeeping (default host-pid)
 
 Never runs inside a Netlify Function; deploy near IRSA (see worker/README.md).
-The native-pixel photometry path reports measured flux, target-pixel wavelength,
-quality flags, and an uncertainty budget without subtracting ZODI twice.
+Photometry jobs currently fail closed: the worker does not yet load the
+detector solid-angle map, science-grade CWAVE/CBAND calibration, or validated
+spatial PSF/ePSF fits required to produce a scientific measurement.
 """
 from __future__ import annotations
 
