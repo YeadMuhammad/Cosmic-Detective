@@ -31,6 +31,17 @@ function boolean(value: string, field: string): boolean {
   throw new Error(`IRSA result has an invalid ${field} value.`)
 }
 
+function angularSeparationArcsec(a: { ra: number; dec: number }, b: { ra: number; dec: number }): number {
+  const degreesToRadians = Math.PI / 180
+  const decA = a.dec * degreesToRadians, decB = b.dec * degreesToRadians
+  const deltaDec = decB - decA
+  const deltaRaDegrees = ((b.ra - a.ra + 540) % 360) - 180
+  const deltaRa = deltaRaDegrees * degreesToRadians
+  const haversine = Math.sin(deltaDec / 2) ** 2
+    + Math.cos(decA) * Math.cos(decB) * Math.sin(deltaRa / 2) ** 2
+  return 2 * Math.asin(Math.min(1, Math.sqrt(haversine))) * (180 * 3600 / Math.PI)
+}
+
 function unitsMatch(field: string, unit: string | null): boolean {
   const allowed = EXPECTED_UNITS[field]
   const normalized = unit?.trim().toLowerCase().replace(/[\u00b5\u03bc]/g, 'u').replace(/\s+/g, ' ').replace(/^[^a-z]+/, '')
@@ -75,6 +86,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
 
   const observations: ObservationMetadata[] = []
   const exposures = new Set<string>()
+  let returnedTarget: { ra: number; dec: number } | null = null
   let rejected = 0
   for (const tr of trs) {
     const cells = [...tr.getElementsByTagName('*')].filter((el) => el.localName === 'TD').map((td) => td.textContent?.trim() ?? '')
@@ -99,15 +111,19 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     if (!['qr2', 'qr3'].includes(release) || !/^D[1-6]$/.test(detector) || !exposure) {
       throw new Error('IRSA VOTable contains unsupported release, detector, or exposure provenance.')
     }
+    if (ra < 0 || ra > 360 || dec < -90 || dec > 90) throw new Error('IRSA VOTable contains coordinates outside the valid ICRS RA/Dec range.')
+    const position = { ra, dec }
+    if (returnedTarget && angularSeparationArcsec(returnedTarget, position) > 0.1) {
+      throw new Error('IRSA VOTable contains measurements at multiple target positions; export one target at a time.')
+    }
+    returnedTarget ??= position
     const exposureKey = `${release}:${detector}:${exposure}`
     if (exposures.has(exposureKey)) throw new Error(`IRSA VOTable repeats exposure ${exposureKey}; duplicate points cannot be treated as independent measurements.`)
     exposures.add(exposureKey)
-    const deltaRa = ((ra - expected.ra + 540) % 360) - 180
-    const angularOffsetArcsec = Math.hypot(deltaRa * Math.cos(expected.dec * Math.PI / 180), dec - expected.dec) * 3600
+    const angularOffsetArcsec = angularSeparationArcsec(expected, position)
     if (angularOffsetArcsec > 6) {
       throw new Error('IRSA result target does not match the portal coordinate (tolerance: 6 arcsec, approximately one SPHEREx pixel).')
     }
-    if (ra < 0 || ra > 360 || dec < -90 || dec > 90) throw new Error('IRSA VOTable contains coordinates outside the valid ICRS RA/Dec range.')
     const usable = isAnalysisEligibleFlags(flags)
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
