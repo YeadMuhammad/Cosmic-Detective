@@ -3,6 +3,7 @@ import test from 'node:test'
 
 import { buildLightCurve, buildSpectrum, phaseFold } from '../src/lib/spherex-series.ts'
 import { capabilitiesFor } from '../src/lib/spherex.ts'
+import { differenceSignificance, validateComparisonPair, withMotionOffset } from '../src/lib/image-comparison.ts'
 
 const liveMeasurement = (band, time, flux = 1) => ({
   dataOrigin: 'live',
@@ -70,4 +71,20 @@ test('phase folding rejects insufficient cycles and invalid periods', () => {
   assert.equal(curve.available, true)
   assert.equal(phaseFold(curve.value, 0).available, false)
   assert.equal(phaseFold(curve.value, 1).available, false)
+})
+
+test('image comparison requires scientifically aligned inputs', () => {
+  const first = { id: 'a', detector: 'D1', band: 'D1', release: 'r', time: 1, overlaps: true, validPixels: 10, astrometricResidualPixels: 0.1 }
+  const second = { ...first, id: 'b', time: 2 }
+  const result = validateComparisonPair(first, second)
+  assert.equal(result.available, true)
+  const moved = withMotionOffset(result.value, { dxPixels: 1.7, dyPixels: -0.2 })
+  assert.equal(moved.motionOffset.dxPixels, 1.7)
+  assert.equal(validateComparisonPair(first, { ...second, band: 'D2' }).available, false)
+  assert.equal(validateComparisonPair(first, { ...second, overlaps: false }).available, false)
+})
+
+test('difference significance includes registration error through the local gradient', () => {
+  const value = differenceSignificance(5, 4, 5, 0.2, 3)
+  assert.equal(value, 5 / Math.sqrt(4 + 5 + (0.2 * 3) ** 2))
 })
