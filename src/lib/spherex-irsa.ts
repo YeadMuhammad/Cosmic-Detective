@@ -38,8 +38,14 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
   if (doc.querySelector('parsererror')) throw new Error('Selected file is not a readable XML VOTable.')
   if (doc.documentElement.localName !== 'VOTABLE') throw new Error('Selected XML document is not a VOTable export.')
   const elements = [...doc.getElementsByTagName('*')]
-  const queryStatus = elements.find((el) => el.localName === 'INFO' && el.getAttribute('name') === 'QUERY_STATUS')
-  if (queryStatus?.getAttribute('value') === 'ERROR') throw new Error(queryStatus.textContent?.trim() || 'IRSA reported an error in this result.')
+  const queryStatuses = elements.filter((el) => el.localName === 'INFO' && el.getAttribute('name') === 'QUERY_STATUS')
+  const queryError = queryStatuses.find((status) => status.getAttribute('value') === 'ERROR')
+  if (queryError) throw new Error(queryError.textContent?.trim() || 'IRSA reported an error in this result.')
+  if (queryStatuses.some((status) => status.getAttribute('value') === 'OVERFLOW')) throw new Error('IRSA marked this result as truncated; rerun the export with a narrower target or smaller result set.')
+  if (!Number.isFinite(expected.ra) || expected.ra < 0 || expected.ra > 360
+    || !Number.isFinite(expected.dec) || expected.dec < -90 || expected.dec > 90) {
+    throw new Error('Portal target coordinate is outside the valid ICRS RA/Dec range.')
+  }
   const fields = elements.filter((el) => el.localName === 'FIELD')
   const names = fields.map((field) => (field.getAttribute('name') || field.getAttribute('ID') || '').trim().toLowerCase())
   const indexes = new Map(names.map((name, index) => [name, index]))
@@ -86,6 +92,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     if (angularOffsetArcsec > 6) {
       throw new Error('IRSA result target does not match the portal coordinate (tolerance: 6 arcsec, approximately one SPHEREx pixel).')
     }
+    if (ra < 0 || ra > 360 || dec < -90 || dec > 90) throw new Error('IRSA VOTable contains coordinates outside the valid ICRS RA/Dec range.')
     const usable = NOMINAL_FLAGS.has(flags)
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
