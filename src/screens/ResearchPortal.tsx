@@ -5,6 +5,7 @@ import { SquadPanel } from '../components/SquadPanel'
 import type { FieldData } from '../lib/squad'
 import { readFitsImage, renderFitsImage } from '../lib/fits'
 import { capabilitiesFor, type Capabilities } from '../lib/spherex'
+import { loadSpherexRegistry, targetCapabilities, type SpherexRegistry } from '../lib/registry'
 import snapshot from '../../data/spherex/manifest.json'
 import type { SnapshotTile } from '../lib/spherex'
 
@@ -111,6 +112,15 @@ export function ResearchPortal() {
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
   const [playing, setPlaying] = useState(false)
   const [readyFrames, setReadyFrames] = useState<Set<string>>(new Set())
+  const [registry, setRegistry] = useState<SpherexRegistry | null>(null)
+  const [registryTarget, setRegistryTarget] = useState('')
+  useEffect(() => {
+    let active = true
+    loadSpherexRegistry().then((data) => { if (active) setRegistry(data) }).catch(() => { /* the portal still works without the registry asset */ })
+    return () => { active = false }
+  }, [])
+  const selectedRegistry = registry?.targets[registryTarget] ?? null
+  const registryCapabilities = useMemo<Capabilities | null>(() => (selectedRegistry ? targetCapabilities(selectedRegistry) : null), [selectedRegistry])
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
   const capabilities = useMemo<Capabilities>(() => capabilitiesFor(selectedFrames), [selectedFrames])
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
@@ -122,6 +132,14 @@ export function ResearchPortal() {
   const explorerUrl = new URL('https://irsa.ipac.caltech.edu/applications/spherex/')
   explorerUrl.searchParams.set('api', 'spectral-images'); explorerUrl.searchParams.set('ra', ra); explorerUrl.searchParams.set('dec', dec); explorerUrl.searchParams.set('sr', `${Number(fov) / 120}d`)
   const toggleBand = (band: string) => setBands((xs) => xs.includes(band) ? xs.filter((x) => x !== band) : [...xs, band])
+  const pickRegistryTarget = (id: string) => {
+    const target = registry?.targets[id]
+    setRegistryTarget(id)
+    if (!target) return
+    const fovArcmin = String(+(target.meta.radiusDeg * 120).toFixed(1))
+    setRa(String(target.meta.ra)); setDec(String(target.meta.dec)); setFov(fovArcmin)
+    updateQuery(String(target.meta.ra), String(target.meta.dec), fovArcmin)
+  }
   const randomize = () => {
     const s = Math.max(1, Math.min(99, Math.floor(Number(seed) || 1))); setSeed(String(s))
     let x = s; const next = () => { x = (x * 9301 + 49297) % 233280; return x / 233280 }
@@ -237,10 +255,24 @@ export function ResearchPortal() {
       <label>Data source<select value={sourceMode} onChange={(e) => setSourceMode(e.target.value as 'live' | 'cached')}><option value="live">Live IRSA archive</option><option value="cached">Cached snapshot ({snapshotGeneratedAt.slice(0, 10)})</option></select></label>
       <label>Random seed (1–99)<span className="seed-row"><input type="number" min="1" max="99" value={seed} onChange={(e) => setSeed(e.target.value)} /><button type="button" className="research-link" onClick={randomize}>Random position</button></span></label>
       <label>Example field<select value="" onChange={(e) => { const demo = DEMO_FIELDS[Number(e.target.value)]; if (demo) { setRa(demo.ra); setDec(demo.dec); setFov('6'); updateQuery(demo.ra, demo.dec, '6') } }}><option value="">Choose a sample position</option>{DEMO_FIELDS.map((demo, i) => <option key={demo.label} value={i}>{demo.label}</option>)}</select></label>
+      <label>Registry target<select value={registryTarget} onChange={(e) => pickRegistryTarget(e.target.value)}><option value="">Choose a registered target</option>{Object.values(registry?.targets ?? {}).map((target) => <option key={target.meta.id} value={target.meta.id}>{target.meta.label}</option>)}</select></label>
       <fieldset className="band-checks"><legend>Detector bands</legend>{BANDS.map((band) => <label key={band}><input type="checkbox" checked={bands.includes(band)} onChange={() => toggleBand(band)} />{band} <small>{WAVE[band]}</small></label>)}</fieldset>
       <Btn disabled={busy}>{busy ? 'Searching IRSA…' : sourceMode === 'cached' ? 'Load selected cached snapshot' : 'Fetch live SPHEREx data'}</Btn>
     </form>
     {provenance === 'cached-live' && <div className="provenance-banner" role="status">CACHED-LIVE SNAPSHOT · {snapshotGeneratedAt} · Explicitly selected; this does not automatically replace unavailable live data.</div>}
+    {selectedRegistry && registry && registryCapabilities && <section className="registry-target" aria-label="Registered target metadata">
+      <div className="panel-title mono">REGISTRY TARGET · {selectedRegistry.meta.label.toUpperCase()}{selectedRegistry.truncated ? ' · TRUNCATED AT THE ROW LIMIT' : ''}</div>
+      <p className="mono">{selectedRegistry.meta.kind} · RA {selectedRegistry.meta.ra}° Dec {selectedRegistry.meta.dec}° · {selectedRegistry.meta.radiusDeg}° radius</p>
+      <p>Archive metadata snapshot {registry.snapshotCapturedAt}: {selectedRegistry.summary.groups} observation groups, {selectedRegistry.summary.items} observations across {selectedRegistry.summary.channels.length} channels — {selectedRegistry.summary.channels.map((channel) => `${channel.channel} (${channel.observations})`).join(' · ')}</p>
+      <p>Survey passes: {selectedRegistry.summary.surveyPasses.join(', ') || 'none'} · Releases: {selectedRegistry.summary.releases.slice(0, 6).join(', ')}{selectedRegistry.summary.releases.length > 6 ? ' …' : ''}</p>
+      <div className="capability-grid" aria-label="Registry-derived analysis capabilities">
+        {(['blink', 'difference', 'lightcurve', 'phaseFold', 'spectrum'] as const).map((id) => <div className="capability-card" key={id}><strong>{({ blink: 'Blink', difference: 'Difference', lightcurve: 'Light Curve', phaseFold: 'Phase fold', spectrum: 'Spectrum' } as const)[id]}</strong><span className={`capability-state ${registryCapabilities[id].state}`}>{registryCapabilities[id].state}</span><p>{registryCapabilities[id].reason}</p></div>)}
+      </div>
+      <p className="research-note">{selectedRegistry.wavelengthTier === 'wcs-wave'
+        ? `Wavelength evaluated at the target pixel (WCS-WAVE): ${selectedRegistry.wavelengthAtTargetUm} µm for at least one exposure.`
+        : registry.wavelengthPolicy.planeBounds}</p>
+      <p className="research-note">Registry capabilities are metadata-derived acceptance expectations, not claims about this sky position; scientific comparison tools stay disabled in browse mode.</p>
+    </section>}
     <div className={`research-status ${error ? 'error' : ''}`} role="status">{status}</div>
     <div className="research-tools"><div className="research-tabs">
       <button type="button" disabled title="Requires registered multi-epoch images." >Blink Comparator</button>

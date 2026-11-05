@@ -1053,6 +1053,9 @@ kbd {
 .capability-state.unavailable { color: var(--muted); }
 .capability-state.computing { color: var(--rank); }
 .provenance-banner { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--rank); color: var(--rank); background: color-mix(in srgb, var(--rank) 8%, transparent); font: 10px 'IBM Plex Mono', monospace; letter-spacing: .04em; }
+.registry-target { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line-strong); background: var(--panel-2); }
+.registry-target .panel-title { margin-bottom: 8px; }
+.registry-target p { margin: 6px 0; font-size: 12px; color: var(--text); }
 .research-footnote { margin-top: 20px; }
 @media (max-width: 800px) { .research-form { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .coverage-strip { grid-template-columns: repeat(3, 1fr); } .research-workspace { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { .research-form { grid-template-columns: minmax(0, 1fr); padding: 12px; } .research-form > label, .research-form .band-checks, .research-form > button { grid-column: 1; min-width: 0; } .seed-row input { flex: 1; } }
