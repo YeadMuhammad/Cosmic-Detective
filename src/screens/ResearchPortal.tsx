@@ -7,7 +7,7 @@ import { readFitsImage, renderFitsImage } from '../lib/fits'
 import { capabilitiesFor, type Capabilities } from '../lib/spherex'
 import { parseIRSASpectrophotometry, type ImportedIRSAResult } from '../lib/spherex-irsa'
 import { buildLightCurve, lightCurveGroups, phaseFold } from '../lib/spherex-series'
-import { loadSpherexRegistry, targetCapabilities, type SpherexRegistry } from '../lib/registry'
+import { loadSpherexRegistry, type SpherexRegistry } from '../lib/registry'
 import snapshot from '../../data/spherex/manifest.json'
 import type { SnapshotTile } from '../lib/spherex'
 import { requestProcessing } from '../lib/processing'
@@ -268,7 +268,6 @@ export function ResearchPortal() {
     return () => { active = false }
   }, [])
   const selectedRegistry = registry?.targets[registryTarget] ?? null
-  const registryCapabilities = useMemo<Capabilities | null>(() => (selectedRegistry ? targetCapabilities(selectedRegistry) : null), [selectedRegistry])
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
   const blinkFrames = useMemo(() => selectedFrames.filter((frame) => frame.collection && frame.processingRelease
     && selectedFrames.some((other) => frameKey(other) !== frameKey(frame) && other.band === frame.band
@@ -308,7 +307,7 @@ export function ResearchPortal() {
     ? phaseFold(lightCurve.value, Number(trialPeriodDays) * 86400000)
     : null
   const phaseReason = !lightCurve
-    ? 'Requires validated live measurements in a matching bandpass.'
+    ? `${capabilities.lightcurve.reason} A phase fold also needs a validated light curve and a trial period.`
     : !lightCurve.available
       ? lightCurve.reason
       : periodResult && !periodResult.available
@@ -499,18 +498,15 @@ export function ResearchPortal() {
       {activeIRSAResult && activeIRSAResult.rejected > 0 && <details><summary>Review {activeIRSAResult.rejected} rows excluded by flags</summary><p>These rows do not have one of IRSA's documented nominal flag values (0 or SOURCE-only, 2097152). IRSA says most flags are warnings rather than automatic rejection criteria; this portal does not yet model those flag-specific effects. Inspect values and fit quality against <a href="https://irsa.ipac.caltech.edu/onlinehelp/spherex/spherex/sp.html" target="_blank" rel="noreferrer">IRSA's flag definitions and guidance</a> before deciding whether they are suitable for a separate workflow. Optional ext_flg and nyquist_comp values are displayed without interpretation.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>UTC</th><th>Flags</th><th>Fit quality</th><th>Flux (µJy)</th><th>Uncertainty (µJy)</th><th>Background (MJy/sr)</th><th>Wavelength (µm)</th><th>ext_flg</th><th>nyquist_comp</th><th>Detector</th><th>Exposure class</th><th>LVF exposure</th></tr></thead><tbody>{activeIRSAResult.observations.filter((observation) => observation.measurement && !observation.measurement.usable).map((observation, index) => { const point = observation.measurement!; return <tr key={`${point.time}-${index}`}><td>{new Date(point.time).toISOString()}</td><td>{point.flags}</td><td>{point.fitQuality}</td><td>{point.flux}</td><td>{point.uncertainty}</td><td>{point.backgroundFluxMJySr}</td><td>{point.wavelength.toFixed(4)}</td><td>{point.diagnostics?.ext_flg ?? 'n/a'}</td><td>{point.diagnostics?.nyquist_comp ?? 'n/a'}</td><td>{point.provenance.detector}</td><td>{point.provenance.deepField ? 'Deep Field' : 'Wide survey'}</td><td>{point.provenance.exposureId}</td></tr> })}</tbody></table></div></details>}
     </section>
     {provenance === 'cached-live' && <div className="provenance-banner" role="status">CACHED-LIVE SNAPSHOT · {snapshotGeneratedAt} · Explicitly selected; this does not automatically replace unavailable live data.</div>}
-    {selectedRegistry && registry && registryCapabilities && <section className="registry-target" aria-label="Registered target metadata">
+    {selectedRegistry && registry && <section className="registry-target" aria-label="Registered target metadata">
       <div className="panel-title mono">REGISTRY TARGET · {selectedRegistry.meta.label.toUpperCase()}{selectedRegistry.truncated ? ' · TRUNCATED AT THE ROW LIMIT' : ''}</div>
       <p className="mono">{selectedRegistry.meta.kind} · RA {selectedRegistry.meta.ra}° Dec {selectedRegistry.meta.dec}° · {selectedRegistry.meta.radiusDeg}° radius</p>
       <p>Archive metadata snapshot {registry.snapshotCapturedAt}: {selectedRegistry.summary.groups} observation groups, {selectedRegistry.summary.items} observations across {selectedRegistry.summary.channels.length} channels — {selectedRegistry.summary.channels.map((channel) => `${channel.channel} (${channel.observations})`).join(' · ')}</p>
       <p>Survey passes: {selectedRegistry.summary.surveyPasses.join(', ') || 'none'} · Releases: {selectedRegistry.summary.releases.slice(0, 6).join(', ')}{selectedRegistry.summary.releases.length > 6 ? ' …' : ''}</p>
-      <div className="capability-grid" aria-label="Registry-derived analysis capabilities">
-        {(['blink', 'difference', 'lightcurve', 'phaseFold', 'spectrum'] as const).map((id) => <div className="capability-card" key={id}><strong>{({ blink: 'Blink', difference: 'Difference', lightcurve: 'Light Curve', phaseFold: 'Phase fold', spectrum: 'Spectrum' } as const)[id]}</strong><span className={`capability-state ${registryCapabilities[id].state}`}>{registryCapabilities[id].state}</span><p>{registryCapabilities[id].reason}</p></div>)}
-      </div>
       <p className="research-note">{selectedRegistry.wavelengthTier === 'wcs-wave'
         ? `Wavelength evaluated at the target pixel (WCS-WAVE): ${selectedRegistry.wavelengthAtTargetUm} µm for at least one exposure.`
         : registry.wavelengthPolicy.planeBounds}</p>
-      <p className="research-note">Registry capabilities are metadata-derived acceptance expectations, not claims about this sky position. Blink is enabled only for live pairs that pass backend WCS and target-passband checks; Difference remains disabled.</p>
+      <p className="research-note">This is a timestamped archive-coverage snapshot. Tool readiness below is calculated from the current query and its validated inputs.</p>
     </section>}
     <div className={`research-status ${error ? 'error' : ''}`} role="status">{status}</div>
     <div className="research-tools"><div className="research-tabs">
@@ -530,7 +526,7 @@ export function ResearchPortal() {
           ['spectrum', 'Spectrum', 'Spectrum'],
         ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{id === 'blink' && analysisCapabilities.blink.state === 'available' ? <button type="button" onClick={() => setView('blink')}>{button}</button> : analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => setAnalysisTool(id as 'lightcurve' | 'phaseFold')}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}
       </div>
-      <span className="tool-unavailable">Blink requires a live, same-detector, same-release pair registered by the worker. Difference remains disabled pending PSF, background, flags, and noise validation. Photometry tools need validated measurements.</span>
+      <span className="tool-unavailable">Blink uses matching live frames registered by the worker. Difference remains disabled pending validated PSF, background, quality-mask, and noise handling. Light Curve, Phase fold, and Spectrum require measured source data; archive images alone do not provide those measurements.</span>
     </div>
     {analysisTool && activeIRSAResult && analysisCapabilities[analysisTool].state === 'available' && <section className="research-results" aria-label={`${analysisTool} analysis`}>
       <div className="panel-title mono">VALIDATED IRSA DATA · {analysisTool.toUpperCase()}</div>

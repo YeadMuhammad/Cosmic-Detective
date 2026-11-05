@@ -139,15 +139,15 @@ export function capabilitiesFor(frames: ObservationMetadata[]): Capabilities {
     blink: unavailable(sameChannel
       ? 'Repeat metadata exists, but aligned pixels and astrometric validation are not available.'
       : 'No same-channel repeat observations were returned.'),
-    difference: unavailable('Requires validated alignment, PSF matching, and quality masks; browse mode does not provide these.'),
+    difference: unavailable('No validated difference product is available. It requires registered images, PSF and background matching, quality masks, and propagated noise.'),
     lightcurve: lightCurveGroup
       ? { state: 'available', reason: `Validated live photometry shares detector, release, exposure class, wavelength, and bandwidth (${lightCurveGroup.toUpperCase()}).` }
       : unavailable(measurements.length
         ? 'Fewer than three quality-approved measurements share a detector, release, exposure class, effective wavelength, and bandwidth over a positive time baseline.'
-        : 'Source photometry has not been extracted from the returned observations.'),
+        : 'No validated source photometry is attached to this query. The native photometry pipeline is not enabled, and browse images are not used to infer flux.'),
     phaseFold: unavailable('Requires a validated same-channel light curve with uncertainties and enough baseline.'),
     spectrum: unavailable(spectrumPoints.length >= 2
       ? 'Photometry is present, but these points span multiple exposures; time-coherent spectral grouping is not yet validated.'
-      : 'Detector channels are present, but measured source-spectrum data are not available.'),
+      : 'Detector channels are present, but this query has no validated source-spectrum measurements. Raw image channels are not a measured spectrum.'),
   }
 }
