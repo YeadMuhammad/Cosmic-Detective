@@ -57,6 +57,7 @@
     { "name": "path traversal product", "input": { "product": "../etc", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": 1 } },
     { "name": "empty release", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "", "ra": 0, "dec": 0, "sizeDeg": 1 } },
     { "name": "floating params", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": 1, "params": { "tol": 0.5 } } },
-    { "name": "non-finite size", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": "big" } }
+    { "name": "non-finite size", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": "big" } },
+    { "name": "trailing newline segment", "input": { "product": "p\n", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": 1 } }
   ]
 }

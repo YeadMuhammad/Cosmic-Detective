@@ -64,6 +64,7 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare v_result jsonb;
 begin
   if auth.uid() is null then raise exception 'Not signed in.'; end if;
+  if octet_length(coalesce(p_save, '{}'::jsonb)::text) > 65536 then raise exception 'Save payload is too large.'; end if;
   update public.profiles
      set tiles   = greatest(tiles,   least(coalesce(p_tiles, 0), 100000)),
          xp      = greatest(xp,      least(coalesce(p_xp, 0), 10000000)),
@@ -184,7 +185,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := auth.uid(); v_squad uuid; v_leader uuid; v_mine int; v_theirs int;
 begin
   if v_uid is null then raise exception 'Not signed in.'; end if;
-  select id, leader_id into v_squad, v_leader from public.squads where join_code = upper(btrim(coalesce(p_code, '')));
+  select id, leader_id into v_squad, v_leader from public.squads where join_code = upper(btrim(coalesce(p_code, ''))) for update;
   if v_squad is null then raise exception 'No squad has that join code.'; end if;
   if exists (select 1 from public.squad_members where user_id = v_uid) then raise exception 'You are already in a squad.'; end if;
   select public.rank_of(tiles) into v_mine   from public.profiles where id = v_uid;
@@ -268,7 +269,7 @@ language plpgsql security definer set search_path = public as $$
 declare v_notes text := btrim(coalesce(p_notes, ''));
 begin
   if auth.uid() is null then raise exception 'Not signed in.'; end if;
-  if p_finding not in ('no_anomaly', 'variable_source', 'moving_source', 'data_quality') then raise exception 'Pick a finding.'; end if;
+  if p_finding is null or p_finding not in ('no_anomaly', 'variable_source', 'moving_source', 'data_quality') then raise exception 'Pick a finding.'; end if;
   if char_length(v_notes) < 10 then raise exception 'Add at least a short note (10+ characters) explaining what you saw.'; end if;
   update public.jobs
      set status = 'submitted', finding = p_finding, notes = left(v_notes, 2000), submitted_at = now()
@@ -299,13 +300,14 @@ begin
   v_ids := array(select distinct unnest(p_job_ids));
   if coalesce(cardinality(v_ids), 0) < 1 then raise exception 'Select at least one verified job.'; end if;
   if char_length(v_summary) < 10 then raise exception 'Write a short cover summary (10+ characters).'; end if;
+  perform id from public.jobs where squad_id = p_squad and id = any (v_ids) and status = 'verified' order by id for update;
   if (select count(*) from public.jobs where squad_id = p_squad and id = any (v_ids) and status = 'verified') <> cardinality(v_ids) then
     raise exception 'Only verified jobs from your squad can be reported.';
   end if;
   v_ref := 'SIM-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('public.nasa_report_seq')::text, 5, '0');
   insert into public.nasa_reports (squad_id, filed_by, ref, summary, job_count)
     values (p_squad, auth.uid(), v_ref, left(v_summary, 2000), cardinality(v_ids)) returning id into v_id;
-  update public.jobs set status = 'reported', reported_at = now(), report_id = v_id where id = any (v_ids);
+  update public.jobs set status = 'reported', reported_at = now(), report_id = v_id where id = any (v_ids) and squad_id = p_squad and status = 'verified';
   return v_ref;
 end $$;
 

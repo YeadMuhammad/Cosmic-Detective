@@ -46,7 +46,7 @@ _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 def check_segment(component: str, name: str) -> str:
     """Rejects empty or path-hostile key components (no traversal, no separators)."""
-    if not isinstance(component, str) or not _SAFE_SEGMENT.match(component):
+    if not isinstance(component, str) or not _SAFE_SEGMENT.fullmatch(component):
         raise ValueError(f"unsafe {name} cache-key component: {component!r}")
     return component
 
@@ -114,6 +114,6 @@ def cache_key(
 
 def upload_path(cache_key_value: str, suffix: str) -> str:
     """Object-storage path for a product file derived from its cache key."""
-    if not suffix or not re.match(r"^\.[A-Za-z0-9]+$", suffix):
+    if not suffix or not re.fullmatch(r"\.[A-Za-z0-9]+", suffix):
         raise ValueError(f"unsafe product suffix: {suffix!r}")
     return f"{cache_key_value}{suffix}"

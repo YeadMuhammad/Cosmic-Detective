@@ -34,23 +34,42 @@ def _image_plane(planes: Mapping[str, tuple[np.ndarray, Any]], name: str) -> tup
     return data, header
 
 
-def _target_pixel(header: Any, ra: float, dec: float) -> tuple[float, float, WCS]:
-    wcs = WCS(header)
-    if not wcs.has_celestial:
+def _target_pixel(header: Any, ra: float, dec: float, hdulist) -> tuple[float, float, WCS]:
+    celestial = WCS(header)
+    if not celestial.has_celestial:
         raise PhotometryError("IMAGE has no celestial WCS")
-    x, y = wcs.celestial.world_to_pixel_values(float(ra), float(dec))
+    x, y = celestial.celestial.world_to_pixel_values(float(ra), float(dec))
     if not np.isfinite(x) or not np.isfinite(y):
         raise PhotometryError("target does not map to a finite image pixel")
-    return float(x), float(y), wcs
+    height, width = hdulist['IMAGE'].data.shape[-2:]
+    if x < 0 or y < 0 or x >= width or y >= height:
+        raise PhotometryError("target is outside the cutout")
+    try:
+        spectral = WCS(header, fobj=hdulist, key="W")
+        if not any(value and ("em." in value or "spect" in value or "wave" in value) for value in spectral.world_axis_physical_types):
+            spectral = celestial
+    except Exception:
+        spectral = celestial
+    return float(x), float(y), spectral
 
 
 def _wavelength_microns(wcs: WCS, x: float, y: float) -> float:
+    # The alternate WCS-WAVE solution is a lookup table indexed by the two
+    # image coordinates; it does not require an invented third pixel axis.
+    try:
+        world = wcs.pixel_to_world(x, y)
+        wavelength = world[0] if isinstance(world, tuple) else world
+        value = float(wavelength.to_value(u.um))
+        if np.isfinite(value) and value > 0:
+            return value
+    except Exception:
+        pass
     physical = wcs.world_axis_physical_types
     spectral = next(
         (index for index, value in enumerate(physical) if value and ("em." in value or "spect" in value or "wave" in value)),
         None,
     )
-    if spectral is None or wcs.pixel_n_dim < 3:
+    if spectral is None or wcs.pixel_n_dim < 2:
         raise PhotometryError("spectral WCS is missing; wavelength at target is unavailable")
     pixels = [0.0] * wcs.pixel_n_dim
     pixels[0], pixels[1] = x, y
@@ -127,7 +146,8 @@ def _psf_plane(
                     scale = 1e-3
                 elif cunit in {"m", "meter", "meters"}:
                     scale = 1e6
-                plane_index = round((wavelength_microns / scale - float(crval)) / float(cdelt))
+                crpix = float(psf_header.get("CRPIX3", 1.0))
+                plane_index = round((wavelength_microns / scale - float(crval)) / float(cdelt) + crpix - 1)
         except (TypeError, ValueError):
             plane_index = None
     if plane_index is None:
@@ -181,14 +201,17 @@ def extract_source_photometry(
         variance, _ = _image_plane(planes, "VARIANCE")
         if flags.shape != image.shape or variance.shape != image.shape:
             raise PhotometryError("IMAGE, FLAGS, and VARIANCE shapes do not match")
-        x, y, wcs = _target_pixel(image_header, ra, dec)
+        x, y, wcs = _target_pixel(image_header, ra, dec, hdulist)
         wavelength = _wavelength_microns(wcs, x, y)
         pixel_area = _pixel_area_sr(wcs)
 
         source_radius = float(params.get("apertureRadius", 2.0))
         if source_radius <= 0 or not np.isfinite(source_radius):
             raise PhotometryError("apertureRadius must be positive and finite")
-        aperture_slices, distance = _window(x, y, image.shape, source_radius, max(6.0, source_radius * 3))
+        outer_radius = max(6.0, source_radius * 3)
+        if x - outer_radius < 0 or y - outer_radius < 0 or x + outer_radius >= image.shape[1] or y + outer_radius >= image.shape[0]:
+            raise PhotometryError("aperture or background annulus extends beyond the cutout")
+        aperture_slices, distance = _window(x, y, image.shape, source_radius, outer_radius)
         local_image = image[aperture_slices]
         local_variance = variance[aperture_slices]
         local_flags = flags[aperture_slices]

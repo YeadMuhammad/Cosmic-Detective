@@ -48,9 +48,13 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     """
     if deps_status is None:
         deps_status = products.detect_dependencies()
+    if not isinstance(job.get("params", {}), dict):
+        raise ValueError("job params must be an object")
     product = str(job.get("product") or "")
     if product not in ("cutout-render", "photometry"):
         raise ValueError(f"unsupported product: {product!r}")
+    if product == "cutout-render":
+        raise RuntimeError("cutout-render not implemented")
 
     missing = products.dependency_reason({name: deps_status.get(name, False) for name in products.product_dependencies(product)})
     if missing:
@@ -77,15 +81,8 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
             float(job["dec"]),
             job.get("params") or {},
         )
-    else:
-        payload_object = {
-            "product": product,
-            "cacheKey": cache_key_value,
-            "cutout": verified,
-            "stages": [{"stage": stage, "description": description} for stage, description in products.staged_products(product, job)],
-            "worker": WORKER_ID,
-            "finishedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
+    else:  # guarded above; keep a defensive failure if a new product is added
+        raise RuntimeError(f"{product} not implemented")
     payload_object.update({"product": product, "cacheKey": cache_key_value, "cutout": verified})
     suffix = ".json"
     payload = json.dumps({
@@ -134,8 +131,8 @@ def main() -> int:
                 continue
             try:
                 path = process_job(job, jobs, supabase_url)
-            except (PayloadTooLarge, NotFits, PhotometryError, RuntimeError, ValueError, KeyError, RestError) as error:
-                reason = str(error)
+            except Exception as error:
+                reason = f"{type(error).__name__}: {error}"
                 print(f"  job {job.get('id', '?')}: FAILED — {reason}")
                 jobs.fail(job.job_id, reason)
             else:

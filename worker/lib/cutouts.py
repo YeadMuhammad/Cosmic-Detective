@@ -76,22 +76,18 @@ def download_verified_cutout(url: str, cap_bytes: int = 33_554_432, timeout: flo
         "Accept": "application/fits, */*;q=0.8",
         "User-Agent": USER_AGENT,
     })
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = read_bounded(response, cap_bytes)
-            fits_ok = verify_fits(body[:FITS_BLOCK])
-            if not fits_ok:
-                raise NotFits(f"response is not FITS ({len(body)} bytes)")
-            return body, {
-                "url": url,
-                "bytes": len(body),
-                "cutoutVerified": True,
-                "hasPrimaryHeader": True,
-                "headerKeywords": _peek_keywords(body[:FITS_BLOCK]),
-            }
-    except urllib.error.HTTPError as error:
-        error.noRetry = 400 <= error.code < 500  # type: ignore[attr-defined]
-        raise
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        body = read_bounded(response, cap_bytes)
+        fits_ok = verify_fits(body[:FITS_BLOCK])
+        if not fits_ok:
+            raise NotFits(f"response is not FITS ({len(body)} bytes)")
+        return body, {
+            "url": url,
+            "bytes": len(body),
+            "cutoutVerified": True,
+            "hasPrimaryHeader": True,
+            "headerKeywords": _peek_keywords(body[:FITS_BLOCK]),
+        }
 
 
 def _peek_keywords(block: bytes) -> list:

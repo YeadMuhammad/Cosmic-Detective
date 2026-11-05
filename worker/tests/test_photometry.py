@@ -15,18 +15,18 @@ from lib.photometry import PhotometryError, extract_source_photometry  # noqa: E
 
 
 def _cutout(include_spectral_wcs: bool = True, include_psf: bool = False, psf_cube: bool = False) -> bytes:
-    size = 11
+    size = 31
     image = np.full((size, size), 10.0)
-    image[5, 5] = 110.0
+    image[15, 15] = 110.0
     variance = np.ones_like(image)
     flags = np.zeros_like(image, dtype=np.int16)
-    flags[4, 5] = 1
+    flags[14, 15] = 1
     header = fits.Header()
     header["NAXIS"] = 3 if include_spectral_wcs else 2
     header["NAXIS1"] = size
     header["NAXIS2"] = size
-    header["CRPIX1"] = 6
-    header["CRPIX2"] = 6
+    header["CRPIX1"] = 16
+    header["CRPIX2"] = 16
     header["CRVAL1"] = 10.0
     header["CRVAL2"] = 20.0
     header["CDELT1"] = -0.001
@@ -57,7 +57,7 @@ def _cutout(include_spectral_wcs: bool = True, include_psf: bool = False, psf_cu
             extensions.append(fits.ImageHDU(psf, header=psf_header, name="PSF"))
         else:
             psf = np.zeros_like(image)
-            psf[5, 5] = 1.0
+            psf[15, 15] = 1.0
             extensions.append(fits.ImageHDU(psf, name="PSF"))
     hdulist = fits.HDUList(extensions)
     stream = BytesIO()

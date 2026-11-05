@@ -93,9 +93,16 @@ $$;
 -- (the reason text feeds capability 'unavailable'). Sweep old rows weekly.
 create or replace function public.sweep_processing_jobs()
 returns void language sql as $$
+  update public.processing_jobs
+     set status = 'failed', error_reason = 'Worker claim timed out.', finished_at = now()
+   where status = 'running' and claimed_at < now() - interval '30 minutes';
   delete from public.processing_jobs
    where status = 'completed' and finished_at < now() - interval '7 days';
   delete from public.processing_jobs
    where status = 'failed' and finished_at < now() - interval '30 days';
   delete from public.processing_requests where created_at < now() - interval '1 day';
 $$;
+
+-- Run the queue cleanup hourly; pg_cron is the supported Supabase scheduler.
+create extension if not exists pg_cron with schema extensions;
+select cron.schedule('sweep-processing-jobs', '17 * * * *', 'select public.sweep_processing_jobs()');
