@@ -1045,6 +1045,10 @@ kbd {
 .research-blink-controls label { display: grid; flex: 1 1 260px; gap: 6px; color: var(--muted); font: 11px 'IBM Plex Mono', monospace; }
 .research-blink-controls select, .research-blink-controls button { min-width: 0; padding: 9px; border: 1px solid var(--line-strong); background: var(--panel-solid); color: var(--text); font: 11px 'IBM Plex Mono', monospace; }
 .research-blink-controls button { cursor: pointer; }
+.blink-job-status { display: flex; align-items: center; gap: 8px; }
+.blink-processing-indicator { flex: 0 0 14px; width: 14px; height: 14px; border: 2px solid color-mix(in srgb, var(--accent) 28%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: blink-processing-spin 0.8s linear infinite; }
+@keyframes blink-processing-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .blink-processing-indicator { animation: none; border-top-color: transparent; } }
 .research-blink-controls button:disabled { opacity: .5; cursor: not-allowed; }
 .research-blink-image { min-height: 0; }
 .research-blink-image img { display: block; width: 100%; height: auto; image-rendering: pixelated; }

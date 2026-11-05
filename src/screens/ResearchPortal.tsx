@@ -171,7 +171,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     } finally { setBusy(false) }
   }
   if (cached) return <section className="research-results"><p>Cached demonstration cutouts do not include validated target-pixel wavelength metadata. Search the live archive to run a scientifically matched blink.</p></section>
-  return <section className="research-results" aria-label="Registered SPHEREx blink comparator">
+  return <section className="research-results" aria-label="Registered SPHEREx blink comparator" aria-busy={busy}>
     <div className="panel-title mono">REGISTERED BLINK · VISUAL COMPARISON</div>
     <p>Frames are eligible only when detector, QR collection, and processing release match. The worker checks target-pixel WCS-WAVE, reprojects both IMAGE planes to one target-centered sky grid, and applies one shared stretch. Image flags are not overlaid and blinking alone is not evidence of a discovery.</p>
     <div className="research-blink-controls">
@@ -179,7 +179,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
       <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
       <button type="button" onClick={() => void run()} disabled={busy || !first || !second}>{busy ? 'Registering…' : 'Register and blink'}</button>
     </div>
-    <p className="research-status" role="status">{message}</p>
+    <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
     {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
       <p className="research-note">Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
   </section>
