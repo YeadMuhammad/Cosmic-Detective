@@ -27,7 +27,7 @@ export interface PhaseBin {
 
 export interface PhaseFoldResult {
   dataOrigin: 'live'
-  label: 'periodic signal candidate'
+  label: 'trial-period fold'
   periodMs: number
   epochMs: number
   cycles: number
@@ -144,7 +144,7 @@ export function phaseFold(
     available: true,
     value: {
       dataOrigin: 'live',
-      label: 'periodic signal candidate',
+      label: 'trial-period fold',
       periodMs,
       epochMs,
       cycles,

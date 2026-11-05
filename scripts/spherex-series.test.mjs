@@ -61,7 +61,7 @@ test('phase folding bins weighted live points and compares a null model', () => 
   assert.equal(curve.available, true)
   const folded = phaseFold(curve.value, 2000, 4)
   assert.equal(folded.available, true)
-  assert.equal(folded.value.label, 'periodic signal candidate')
+  assert.equal(folded.value.label, 'trial-period fold')
   assert.equal(folded.value.bins.length, 2)
   assert.equal(folded.value.nullModel.degreesOfFreedom, 7)
   assert.ok(folded.value.foldedModelImprovement >= 0)
