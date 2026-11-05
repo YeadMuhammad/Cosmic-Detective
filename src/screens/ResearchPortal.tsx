@@ -322,7 +322,10 @@ export function ResearchPortal() {
       const parsed = parseIRSASpectrophotometry(await file.text(), { ra: Number(ra), dec: Number(dec) })
       setIrsaResult(parsed)
       setAnalysisBand('')
-      setStatus(`Imported ${parsed.rows} IRSA spectrophotometry rows; ${parsed.rejected} rows have flags outside the approved informational SOURCE/FULLSAMPLE combinations and are excluded from analysis.`)
+      const eligibleRows = parsed.rows - parsed.rejected
+      setStatus(eligibleRows
+        ? `Imported ${parsed.rows} IRSA spectrophotometry rows; ${eligibleRows} pass the informational SOURCE/FULLSAMPLE flag gate and ${parsed.rejected} remain excluded from analysis.`
+        : `Imported ${parsed.rows} rows for inspection, but none pass the informational SOURCE/FULLSAMPLE flag gate. Scientific tools remain unavailable.`)
     } catch (error) {
       setIrsaError((error as Error).message)
     }
@@ -352,7 +355,7 @@ export function ResearchPortal() {
       <label className="research-link">Import IRSA VOTable<input type="file" accept=".vot,.xml,application/xml,text/xml" onChange={(event) => void importIRSAFile(event.target.files?.[0])} /></label>
       {analysisCapabilities.lightcurve.state === 'available' && <label>Trial period for phase fold (days)<input type="number" min="0" step="any" value={trialPeriodDays} onChange={(event) => setTrialPeriodDays(event.target.value)} /></label>}
       {irsaError && <p className="research-status error" role="alert">{irsaError}</p>}
-      {irsaResult && <p className="research-note" role="status">{irsaResult.source} · RA {irsaResult.target.ra}, Dec {irsaResult.target.dec} · {irsaResult.rows} points · {irsaResult.rejected} excluded by flags. {activeIRSAResult ? 'Imported data is held in this page only.' : 'The query coordinate changed; this import is inactive until you reload a matching result.'}</p>}
+      {irsaResult && <p className="research-note" role="status">{irsaResult.source} · RA {irsaResult.target.ra}, Dec {irsaResult.target.dec} · {irsaResult.rows} points · {irsaResult.rows - irsaResult.rejected} pass the approved flag gate · {irsaResult.rejected} excluded by flags. {activeIRSAResult ? 'Imported data is held in this page only.' : 'The query coordinate changed; this import is inactive until you reload a matching result.'}</p>}
       {activeIRSAResult && activeIRSAResult.rejected > 0 && <details><summary>Review {activeIRSAResult.rejected} rows excluded by flags</summary><p>These rows are excluded from analysis because they contain flags beyond the documented informational SOURCE and FULLSAMPLE bits. IRSA says most flags are warnings rather than automatic rejection criteria; this portal does not yet model those flag-specific effects. Inspect values and fit quality against <a href="https://irsa.ipac.caltech.edu/onlinehelp/spherex/spherex/sp.html" target="_blank" rel="noreferrer">IRSA's flag definitions and guidance</a> before deciding whether they are suitable for a separate workflow.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>UTC</th><th>Flags</th><th>Fit quality</th><th>Flux (µJy)</th><th>Uncertainty (µJy)</th><th>Background (MJy/sr)</th><th>Wavelength (µm)</th><th>Detector</th><th>LVF exposure</th></tr></thead><tbody>{activeIRSAResult.observations.filter((observation) => observation.measurement && !observation.measurement.usable).map((observation, index) => { const point = observation.measurement!; return <tr key={`${point.time}-${index}`}><td>{new Date(point.time).toISOString()}</td><td>{point.flags}</td><td>{point.fitQuality}</td><td>{point.flux}</td><td>{point.uncertainty}</td><td>{point.backgroundFluxMJySr}</td><td>{point.wavelength.toFixed(4)}</td><td>{point.provenance.detector}</td><td>{point.provenance.exposureId}</td></tr> })}</tbody></table></div></details>}
     </section>
     {provenance === 'cached-live' && <div className="provenance-banner" role="status">CACHED-LIVE SNAPSHOT · {snapshotGeneratedAt} · Explicitly selected; this does not automatically replace unavailable live data.</div>}

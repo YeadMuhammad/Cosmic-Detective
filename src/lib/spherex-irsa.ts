@@ -109,8 +109,5 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const spectrum: SourceSpectrumPoint = { dataOrigin: 'live', provenance, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })
   }
-  if (!observations.some((observation) => observation.measurement?.usable)) {
-    throw new Error('No rows have only the approved informational IRSA flags (SOURCE and/or FULLSAMPLE); the result cannot enable analysis.')
-  }
   return { target: expected, observations, rows: observations.length, rejected, source: 'IRSA SPHEREx Spectrophotometry Tool' }
 }
