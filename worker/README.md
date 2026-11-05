@@ -47,10 +47,17 @@ subtracted twice when extraction is implemented.
 
 ## Run
 
-    pip install -r worker/requirements.txt
-    set SUPABASE_URL=...
-    set SUPABASE_SERVICE_KEY=...        # service_role; worker is trusted infra
+From the repository root, install dependencies and start the worker in a
+separate terminal from `netlify dev`:
+
+    python -m pip install -r worker/requirements.txt
     python worker/spherex_worker.py
+
+For local runs, the worker reads `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` from the ignored root `.env` file. It also accepts
+`SUPABASE_SERVICE_KEY` as a legacy name. Deployed workers should receive these
+as environment secrets. The worker prints each claimed job and its completion
+or failure, so a job that remains queued indicates no worker has claimed it.
 
     # tests (no network, no Supabase):
     python -m unittest discover -s worker/tests

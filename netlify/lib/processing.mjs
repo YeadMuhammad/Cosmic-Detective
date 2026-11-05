@@ -119,7 +119,7 @@ export function rateLimitDecision(count, nowMs, { windowMs = RATE_LIMIT.windowMs
 /* --------------------------------------------------------- capability state */
 
 const UNAVAILABLE_REASONS = {
-  queued: 'Your processing request is queued; the SPHEREx worker is busy with other observations.',
+  queued: 'Your processing request is queued and waiting for a SPHEREx worker.',
   running: 'Processing is running on the SPHEREx worker.',
 }
 

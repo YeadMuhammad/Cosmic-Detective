@@ -11,7 +11,7 @@ exposes as capability 'unavailable: <reason>'.
 
 Env:
   SUPABASE_URL            project URL (required)
-  SUPABASE_SERVICE_KEY    service_role key (required; the worker is trusted)
+  SUPABASE_SERVICE_ROLE_KEY service_role key (required; the worker is trusted)
   SPHEREX_BUCKET          storage bucket for products (default 'spherex-products')
   WORKER_POLL_SECONDS     poll interval (default 5)
   WORKER_ID               identity for claim bookkeeping (default host-pid)
@@ -28,8 +28,13 @@ import os
 import socket
 import sys
 import time
+from pathlib import Path
 import urllib.request
 from urllib.error import HTTPError, URLError
+from dotenv import load_dotenv
+
+# Load the ignored project-root .env for local runs; real environment secrets win.
+load_dotenv(Path(__file__).resolve().parents[1] / ".env", override=False)
 
 from lib import cutouts, products
 from lib.cache_keys import upload_path
@@ -136,9 +141,9 @@ def upload_product(supabase_url: str, path: str, payload: bytes) -> None:
 
 def main() -> int:
     supabase_url = os.environ.get("SUPABASE_URL")
-    service_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
     if not supabase_url or not service_key:
-        print("SUPABASE_URL and SUPABASE_SERVICE_KEY are required", file=sys.stderr)
+        print("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required", file=sys.stderr)
         return 2
     jobs = Jobs(supabase_url, service_key)
     print(f"worker {WORKER_ID} polling {supabase_url} every {POLL_SECONDS}s (bucket {BUCKET})")

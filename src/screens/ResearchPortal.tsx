@@ -150,15 +150,38 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
       })
       if (initial.state === 'unavailable') throw new Error(initial.reason)
       let job = initial
-      for (let attempt = 0; attempt < 360; attempt++) {
+      const pollingStartedAt = Date.now()
+      const pollingDeadline = pollingStartedAt + 5 * 60 * 1000
+      let resultLinkLookupDone = false
+      while (true) {
         if (job.state === 'unavailable') throw new Error(job.reason)
         if (job.state === 'available' && job.resultUrl) break
+        if (job.state === 'available' && resultLinkLookupDone) {
+          throw new Error(job.reason || 'The completed Blink job did not provide a result link.')
+        }
         if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
-        setMessage(`Registering matched images on the worker… (${Math.floor((attempt + 1) * 5 / 60)} min)`)
-        await new Promise((resolve) => window.setTimeout(resolve, 5000))
-        const response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`)
+        if (Date.now() >= pollingDeadline) {
+          throw new Error(`Stopped polling after 5 minutes. ${job.reason || 'The job is still processing.'} Check that the SPHEREx worker is running; the queued job remains on the server.`)
+        }
+        if (job.state === 'computing') {
+          const elapsedSeconds = Math.floor((Date.now() - pollingStartedAt) / 1000)
+          setMessage(`${job.reason || 'Registering matched images on the worker…'} (${elapsedSeconds}s elapsed)`)
+          await new Promise((resolve) => window.setTimeout(resolve, 5000))
+        } else if (job.state === 'available') {
+          resultLinkLookupDone = true
+        }
+        let response: Response
+        try {
+          response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`, { signal: AbortSignal.timeout(20000) })
+        } catch {
+          throw new Error('The worker status check timed out or could not reach Netlify. Check the function connection and try again.')
+        }
         if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
-        job = await response.json() as typeof job
+        const nextJob = await response.json().catch(() => null) as typeof job | null
+        if (!nextJob || !['available', 'computing', 'unavailable'].includes(nextJob.state)) {
+          throw new Error('The processing function returned an invalid job status.')
+        }
+        job = nextJob
       }
       if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Registration did not produce an image pair.')
       const resultResponse = await fetch(job.resultUrl)
