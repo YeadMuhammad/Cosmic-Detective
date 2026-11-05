@@ -58,7 +58,7 @@ test('phase folding bins weighted live points and compares a null model', () => 
   assert.equal(folded.value.label, 'periodic signal candidate')
   assert.equal(folded.value.bins.length, 2)
   assert.equal(folded.value.nullModel.degreesOfFreedom, 7)
-  assert.ok(folded.value.falseAlarmEstimate >= 0 && folded.value.falseAlarmEstimate <= 1)
+  assert.ok(folded.value.foldedModelImprovement >= 0)
 })
 
 test('phase folding rejects insufficient cycles and invalid periods', () => {

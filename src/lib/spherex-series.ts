@@ -1,4 +1,5 @@
 import type { ObservationMetadata, SourceMeasurement, SourceSpectrumPoint } from './spherex'
+import { isUsableMeasurement, isUsableSpectrumPoint } from './spherex'
 
 export interface ValidatedLightCurve {
   dataOrigin: 'live'
@@ -28,22 +29,13 @@ export interface PhaseFoldResult {
   cycles: number
   bins: PhaseBin[]
   nullModel: { weightedMean: number; chiSquare: number; degreesOfFreedom: number }
-  falseAlarmEstimate: number
+  foldedModelImprovement: number
 }
 
 function measurementsFor(frames: ObservationMetadata[], band: string): SourceMeasurement[] {
   return frames
     .map((frame) => frame.measurement)
-    .filter((measurement): measurement is SourceMeasurement => Boolean(
-      measurement
-      && measurement.dataOrigin === 'live'
-      && measurement.band === band
-      && measurement.usable
-      && Number.isFinite(measurement.time)
-      && Number.isFinite(measurement.flux)
-      && Number.isFinite(measurement.uncertainty)
-      && measurement.uncertainty > 0,
-    ))
+    .filter((measurement): measurement is SourceMeasurement => isUsableMeasurement(measurement) && measurement.band === band)
     .sort((a, b) => a.time - b.time)
 }
 
@@ -62,16 +54,7 @@ export function buildLightCurve(frames: ObservationMetadata[], band: string, min
 export function buildSpectrum(frames: ObservationMetadata[], minimumPoints = 2): SeriesResult<ValidatedSpectrum> {
   const points = frames
     .flatMap((frame) => frame.spectrum ?? [])
-    .filter((point): point is SourceSpectrumPoint => Boolean(
-      point
-      && point.dataOrigin === 'live'
-      && point.usable
-      && Number.isFinite(point.wavelength)
-      && point.wavelength > 0
-      && Number.isFinite(point.flux)
-      && Number.isFinite(point.uncertainty)
-      && point.uncertainty > 0,
-    ))
+    .filter(isUsableSpectrumPoint)
     .sort((a, b) => a.wavelength - b.wavelength)
   if (points.length < minimumPoints) {
     return { available: false, reason: `Requires at least ${minimumPoints} quality-approved live spectrum measurements.` }
@@ -116,7 +99,10 @@ export function phaseFold(
     })
     .filter((bin): bin is PhaseBin => bin !== null)
   const degreesOfFreedom = Math.max(0, curve.points.length - 1)
-  const falseAlarmEstimate = Math.min(1, Math.exp(-0.5 * Math.max(0, nullChiSquare - degreesOfFreedom)))
+  const foldedModelImprovement = Math.max(0, nullChiSquare - bins.reduce((sum, bin) => {
+    const bucket = buckets[Math.floor(bin.phase * binCount)]
+    return sum + bucket.reduce((inner, point) => inner + ((point.flux - bin.flux) / point.uncertainty) ** 2, 0)
+  }, 0))
   return {
     available: true,
     value: {
@@ -126,7 +112,7 @@ export function phaseFold(
       cycles,
       bins,
       nullModel: { weightedMean, chiSquare: nullChiSquare, degreesOfFreedom },
-      falseAlarmEstimate,
+      foldedModelImprovement,
     },
   }
 }

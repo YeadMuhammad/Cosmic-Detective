@@ -92,7 +92,7 @@ function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () =>
       renderFitsImage(canvas.current, readFitsImage(buffer))
       setState('ready')
       onReady()
-    }).catch(() => { if (active) setState('error') })
+    }).catch(() => { if (active) { setState('error'); onReady() } })
     return () => { active = false }
   }, [frame])
   return <div className="research-image">

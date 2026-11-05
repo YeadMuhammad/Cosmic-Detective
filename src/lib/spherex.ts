@@ -55,30 +55,28 @@ export type Capabilities = Record<CapabilityId, Capability>
 
 const unavailable = (reason: string): Capability => ({ state: 'unavailable', reason })
 
+export function isUsableMeasurement(measurement: SourceMeasurement | null | undefined): measurement is SourceMeasurement {
+  return Boolean(measurement && measurement.dataOrigin === 'live' && measurement.usable
+    && Number.isFinite(measurement.time) && Number.isFinite(measurement.flux)
+    && Number.isFinite(measurement.uncertainty) && measurement.uncertainty > 0)
+}
+
+export function isUsableSpectrumPoint(point: SourceSpectrumPoint | null | undefined): point is SourceSpectrumPoint {
+  return Boolean(point && point.dataOrigin === 'live' && point.usable
+    && Number.isFinite(point.wavelength) && point.wavelength > 0
+    && Number.isFinite(point.flux) && Number.isFinite(point.uncertainty) && point.uncertainty > 0)
+}
+
 function usableMeasurements(frames: ObservationMetadata[]): SourceMeasurement[] {
   return frames
     .map((frame) => frame.measurement)
-    .filter((measurement): measurement is SourceMeasurement => Boolean(
-      measurement
-      && measurement.dataOrigin === 'live'
-      && measurement.usable
-      && Number.isFinite(measurement.time)
-      && Number.isFinite(measurement.flux)
-      && Number.isFinite(measurement.uncertainty)
-      && measurement.uncertainty > 0,
-    ))
+    .filter(isUsableMeasurement)
 }
 
 function measuredSpectrum(frames: ObservationMetadata[]): SourceSpectrumPoint[] {
   return frames
     .flatMap((frame) => frame.spectrum ?? [])
-    .filter((point) => point.dataOrigin === 'live'
-      && point.usable
-      && Number.isFinite(point.wavelength)
-      && point.wavelength > 0
-      && Number.isFinite(point.flux)
-      && Number.isFinite(point.uncertainty)
-      && point.uncertainty > 0)
+    .filter(isUsableSpectrumPoint)
 }
 
 /** Metadata-only gating. No FITS pixels or photometry are treated as available here. */

@@ -1042,7 +1042,7 @@ kbd {
 .research-image-state { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; text-align: center; color: var(--muted); background: rgba(0, 0, 0, .72); }
 .research-playback { display: flex; align-items: center; gap: 12px; margin: 10px 0 14px; color: var(--muted); font: 11px 'IBM Plex Mono', monospace; }
 .research-playback button { border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--text); padding: 7px 10px; cursor: pointer; font: inherit; }
-.capability-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin: 14px 0; }
+.capability-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 8px; margin: 14px 0; }
 .capability-card { min-width: 0; padding: 10px; border: 1px solid var(--line); background: var(--panel-2); }
 .capability-card strong { display: block; font-size: 12px; }
 .capability-card p { margin: 7px 0 10px; color: var(--muted); font-size: 11px; line-height: 1.35; }

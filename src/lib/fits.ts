@@ -60,7 +60,8 @@ export function renderFitsImage(canvas: HTMLCanvasElement, image: { width: numbe
   const finite = [...image.values].filter(Number.isFinite).sort((a, b) => a - b)
   if (!finite.length) throw new Error('FITS image contains no finite pixels.')
   const lo = finite[Math.floor(finite.length * 0.02)]
-  const hi = finite[Math.floor(finite.length * 0.995)] || lo + 1
+  const percentile = finite[Math.floor(finite.length * 0.995)]
+  const hi = percentile > lo ? percentile : lo + Math.max(1, Math.abs(lo) * 0.01)
   const data = context.createImageData(image.width, image.height)
   for (let i = 0; i < image.values.length; i++) {
     const value = Number.isFinite(image.values[i]) ? Math.max(0, Math.min(1, (image.values[i] - lo) / (hi - lo))) : 0
