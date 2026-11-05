@@ -6,7 +6,7 @@ import type { FieldData } from '../lib/squad'
 import { readFitsImage, renderFitsImage } from '../lib/fits'
 import { capabilitiesFor, type Capabilities } from '../lib/spherex'
 import { parseIRSASpectrophotometry, type ImportedIRSAResult } from '../lib/spherex-irsa'
-import { buildLightCurve, phaseFold } from '../lib/spherex-series'
+import { buildLightCurve, lightCurveGroups, phaseFold } from '../lib/spherex-series'
 import { loadSpherexRegistry, targetCapabilities, type SpherexRegistry } from '../lib/registry'
 import snapshot from '../../data/spherex/manifest.json'
 import type { SnapshotTile } from '../lib/spherex'
@@ -111,6 +111,39 @@ function BrowseImage({ frame, onStart, onReady }: { frame: Frame; onStart: () =>
   </div>
 }
 
+function MeasurementPlot({
+  points,
+  xLabel,
+  yLabel,
+  label,
+}: {
+  points: Array<{ x: number; y: number; error: number }>
+  xLabel: string
+  yLabel: string
+  label: string
+}) {
+  if (!points.length) return null
+  const width = 760, height = 280, left = 64, right = 24, top = 20, bottom = 48
+  const xMin = Math.min(...points.map((point) => point.x)), xMax = Math.max(...points.map((point) => point.x))
+  const yMin = Math.min(...points.map((point) => point.y - point.error)), yMax = Math.max(...points.map((point) => point.y + point.error))
+  const xSpan = xMax - xMin || 1, ySpan = yMax - yMin || Math.max(1, Math.abs(yMax) * 0.1)
+  const x = (value: number) => left + (value - xMin) / xSpan * (width - left - right)
+  const y = (value: number) => top + (yMax - value) / ySpan * (height - top - bottom)
+  return <svg className="research-timeline" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
+    <line x1={left} x2={left} y1={top} y2={height - bottom} />
+    <line x1={left} x2={width - right} y1={height - bottom} y2={height - bottom} />
+    {points.map((point, index) => <g key={`${point.x}-${index}`}>
+      <line x1={x(point.x)} x2={x(point.x)} y1={y(point.y - point.error)} y2={y(point.y + point.error)} />
+      <line x1={x(point.x) - 3} x2={x(point.x) + 3} y1={y(point.y - point.error)} y2={y(point.y - point.error)} />
+      <line x1={x(point.x) - 3} x2={x(point.x) + 3} y1={y(point.y + point.error)} y2={y(point.y + point.error)} />
+      <circle cx={x(point.x)} cy={y(point.y)} r="4" />
+    </g>)}
+    <text x={left} y={height - 12}>{xMin.toFixed(3)}</text><text x={width - right} y={height - 12} textAnchor="end">{xMax.toFixed(3)}</text>
+    <text x="12" y={top + 8}>{yMax.toPrecision(4)}</text><text x="12" y={height - bottom}>{yMin.toPrecision(4)}</text>
+    <text x={width / 2} y={height - 2} textAnchor="middle">{xLabel}</text><text x="14" y={height / 2} transform={`rotate(-90 14 ${height / 2})`} textAnchor="middle">{yLabel}</text>
+  </svg>
+}
+
 export function ResearchPortal() {
   const initial = initialQuery()
   const [ra, setRa] = useState(initial.ra), [dec, setDec] = useState(initial.dec), [fov, setFov] = useState(initial.fov), [seed, setSeed] = useState('42')
@@ -129,6 +162,7 @@ export function ResearchPortal() {
   const [analysisTool, setAnalysisTool] = useState<'lightcurve' | 'phaseFold' | null>(null)
   const [analysisBand, setAnalysisBand] = useState('')
   const [analysisRelease, setAnalysisRelease] = useState<'qr2' | 'qr3' | ''>('')
+  const [analysisPassband, setAnalysisPassband] = useState('')
   const [trialPeriodDays, setTrialPeriodDays] = useState('')
   useEffect(() => {
     let active = true
@@ -140,21 +174,30 @@ export function ResearchPortal() {
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
   const activeIRSAResult = coordinateMatches(irsaResult, ra, dec) ? irsaResult : null
   const capabilities = useMemo<Capabilities>(() => capabilitiesFor(activeIRSAResult?.observations ?? []), [activeIRSAResult])
-  const measuredBands = [...new Set(activeIRSAResult?.observations.filter((observation) => observation.measurement?.usable).map((observation) => observation.band) ?? [])]
-  const curveGroups = activeIRSAResult ? measuredBands.flatMap((band) => (['qr2', 'qr3'] as const)
-    .filter((release) => buildLightCurve(activeIRSAResult.observations, band, 3, release).available)
-    .map((release) => ({ band, release }))) : []
+  const curveGroups = activeIRSAResult ? lightCurveGroups(activeIRSAResult.observations) : []
   const availableBands = [...new Set(curveGroups.map((group) => group.band))]
   const effectiveBand = availableBands.includes(analysisBand) ? analysisBand : curveGroups[0]?.band ?? ''
   const availableReleases = curveGroups.filter((group) => group.band === effectiveBand).map((group) => group.release)
   const effectiveRelease = availableReleases.includes(analysisRelease as 'qr2' | 'qr3') ? analysisRelease as 'qr2' | 'qr3' : availableReleases[0]
-  const lightCurve = effectiveBand && effectiveRelease && activeIRSAResult ? buildLightCurve(activeIRSAResult.observations, effectiveBand, 3, effectiveRelease) : null
+  const passbandGroups = curveGroups.filter((group) => group.band === effectiveBand && group.release === effectiveRelease)
+  const passbandKey = (wavelength: number, bandwidth: number) => `${wavelength.toFixed(4)}:${bandwidth.toFixed(4)}`
+  const effectivePassband = passbandGroups.find((group) => passbandKey(group.wavelength, group.bandwidth) === analysisPassband) ?? passbandGroups[0]
+  const lightCurve = effectiveBand && effectiveRelease && effectivePassband && activeIRSAResult
+    ? buildLightCurve(activeIRSAResult.observations, effectiveBand, 3, effectiveRelease, effectivePassband.wavelength, effectivePassband.bandwidth)
+    : null
   const periodResult = lightCurve?.available && trialPeriodDays
     ? phaseFold(lightCurve.value, Number(trialPeriodDays) * 86400000)
     : null
+  const phaseReason = !lightCurve
+    ? 'Requires validated live measurements in a matching bandpass.'
+    : !lightCurve.available
+      ? lightCurve.reason
+      : periodResult && !periodResult.available
+        ? periodResult.reason
+        : 'Enter a trial period; at least six points spanning two cycles are required.'
   const phaseCapability = periodResult?.available
     ? { state: 'available' as const, reason: 'Validated same-channel photometry spans at least two trial-period cycles.' }
-    : { state: 'unavailable' as const, reason: lightCurve?.available ? (periodResult?.reason ?? 'Enter a trial period; at least six points spanning two cycles are required.') : (lightCurve?.reason ?? 'Requires validated live measurements.') }
+    : { state: 'unavailable' as const, reason: phaseReason }
   const analysisCapabilities = { ...capabilities, phaseFold: phaseCapability }
   const activeFrame = selectedFrames.find((f) => frameKey(f) === activeKey) ?? selectedFrames[0] ?? null
   const currentKey = activeFrame ? frameKey(activeFrame) : ''
@@ -352,11 +395,12 @@ export function ResearchPortal() {
       {analysisTool === 'lightcurve' && <>
         <label>Same detector<select value={effectiveBand} onChange={(event) => setAnalysisBand(event.target.value)}>{availableBands.map((band) => <option key={band} value={band}>{band}</option>)}</select></label>
         <label>Calibration release<select value={effectiveRelease ?? ''} onChange={(event) => setAnalysisRelease(event.target.value as 'qr2' | 'qr3' | '')}>{availableReleases.map((release) => <option key={release} value={release}>{release.toUpperCase()}</option>)}</select></label>
-        {lightCurve?.available ? <><p>{lightCurve.value.points.length} nominal-flag points · {(lightCurve.value.baselineMs / 86400000).toFixed(5)} day baseline · {lightCurve.value.release.toUpperCase()} calibration only · flux in µJy. IRSA uses a fixed forced position; check source motion and blending before interpreting variability. Its fit_ql values near 1 generally indicate better fits; inspect them point by point.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>UTC</th><th>Flux (µJy)</th><th>Uncertainty (µJy)</th><th>Wavelength (µm)</th><th>RA</th><th>Dec</th><th>LVF exposure</th><th>Flags</th><th>Fit quality</th></tr></thead><tbody>{lightCurve.value.points.map((point, index) => { const row = activeIRSAResult.observations.find((observation) => observation.measurement === point); return <tr key={`${point.time}-${index}`}><td>{new Date(point.time).toISOString()}</td><td>{point.flux}</td><td>{point.uncertainty}</td><td>{row?.wavelength}</td><td>{row?.position?.ra}</td><td>{row?.position?.dec}</td><td>{point.provenance.exposureId}</td><td>{point.flags}</td><td>{point.fitQuality}</td></tr> })}</tbody></table></div></> : <p>{lightCurve?.reason ?? 'No valid same-detector measurements.'}</p>}
+        <label>Effective wavelength and bandwidth<select value={effectivePassband ? passbandKey(effectivePassband.wavelength, effectivePassband.bandwidth) : ''} onChange={(event) => setAnalysisPassband(event.target.value)}>{passbandGroups.map((group) => <option key={passbandKey(group.wavelength, group.bandwidth)} value={passbandKey(group.wavelength, group.bandwidth)}>{group.wavelength.toFixed(4)} µm ± {group.bandwidth.toFixed(4)} µm</option>)}</select></label>
+        {lightCurve?.available ? <><p>{lightCurve.value.points.length} nominal-flag points · {(lightCurve.value.baselineMs / 86400000).toFixed(5)} day baseline · {lightCurve.value.release.toUpperCase()} calibration only. Points are grouped only when detector, release, central wavelength, and effective bandwidth agree to 0.0001 µm. IRSA uses a fixed forced position; check source motion and blending before interpreting variability. Its fit_ql values near 1 generally indicate better fits; inspect them point by point.</p><MeasurementPlot label="SPHEREx same-band light curve with reported flux uncertainties" points={lightCurve.value.points.map((point) => ({ x: (point.time - lightCurve.value.points[0].time) / 86400000, y: point.flux, error: point.uncertainty }))} xLabel="Time since first measurement (days)" yLabel="Flux (µJy)" /><div className="research-table-wrap"><table className="research-table"><thead><tr><th>UTC</th><th>Flux (µJy)</th><th>Uncertainty (µJy)</th><th>Wavelength (µm)</th><th>RA</th><th>Dec</th><th>LVF exposure</th><th>Flags</th><th>Fit quality</th></tr></thead><tbody>{lightCurve.value.points.map((point, index) => { const row = activeIRSAResult.observations.find((observation) => observation.measurement === point); return <tr key={`${point.time}-${index}`}><td>{new Date(point.time).toISOString()}</td><td>{point.flux}</td><td>{point.uncertainty}</td><td>{point.wavelength.toFixed(4)}</td><td>{row?.position?.ra}</td><td>{row?.position?.dec}</td><td>{point.provenance.exposureId}</td><td>{point.flags}</td><td>{point.fitQuality}</td></tr> })}</tbody></table></div></> : <p>{lightCurve && !lightCurve.available ? lightCurve.reason : 'No valid same-detector measurements.'}</p>}
       </>}
       {analysisTool === 'phaseFold' && <>
         <p>Phase zero is the first valid observation in the selected detector and release.</p>
-        {periodResult?.available ? <><p>Periodic signal candidate · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability.</p><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
+        {periodResult?.available ? <><p>Periodic signal candidate · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability.</p><MeasurementPlot label="SPHEREx trial-period phase fold with weighted flux uncertainties" points={periodResult.value.bins.map((bin) => ({ x: bin.phase, y: bin.flux, error: bin.uncertainty }))} xLabel="Phase (cycle)" yLabel="Flux (µJy)" /><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
       </>}
     </section>}
     {selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>

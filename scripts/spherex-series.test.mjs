@@ -10,6 +10,8 @@ const liveMeasurement = (band, time, flux = 1) => ({
   provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: band, exposureId: `exp-${time}` },
   band,
   time,
+  wavelength: 1.01,
+  bandwidth: 0.01,
   flux,
   uncertainty: 0.1,
   usable: true,
@@ -19,9 +21,9 @@ const liveMeasurement = (band, time, flux = 1) => ({
 
 test('light curve requires quality-approved same-channel live measurements', () => {
   const frames = [
-    { band: 'D1', release: 'r', time: 1, measurement: liveMeasurement('D1', 1) },
-    { band: 'D1', release: 'r', time: 2, measurement: liveMeasurement('D1', 2) },
-    { band: 'D1', release: 'r', time: 3, measurement: liveMeasurement('D1', 3) },
+    { band: 'D1', release: 'qr3', time: 1, measurement: liveMeasurement('D1', 1) },
+    { band: 'D1', release: 'qr3', time: 2, measurement: liveMeasurement('D1', 2) },
+    { band: 'D1', release: 'qr3', time: 3, measurement: liveMeasurement('D1', 3) },
   ]
   const result = buildLightCurve(frames, 'D1')
   assert.equal(result.available, true)
@@ -31,9 +33,9 @@ test('light curve requires quality-approved same-channel live measurements', () 
 
 test('unusable and simulated measurements never enable light curves', () => {
   const frames = [
-    { band: 'D1', release: 'r', time: 1, measurement: { ...liveMeasurement('D1', 1), usable: false } },
-    { band: 'D1', release: 'r', time: 2, measurement: { ...liveMeasurement('D1', 2), dataOrigin: 'simulated' } },
-    { band: 'D1', release: 'r', time: 3 },
+    { band: 'D1', release: 'qr3', time: 1, measurement: { ...liveMeasurement('D1', 1), usable: false } },
+    { band: 'D1', release: 'qr3', time: 2, measurement: { ...liveMeasurement('D1', 2), dataOrigin: 'simulated' } },
+    { band: 'D1', release: 'qr3', time: 3 },
   ]
   assert.equal(buildLightCurve(frames, 'D1').available, false)
   assert.equal(capabilitiesFor(frames).lightcurve.state, 'unavailable')
@@ -41,8 +43,8 @@ test('unusable and simulated measurements never enable light curves', () => {
 
 test('spectrum stays unavailable when measurements span ungrouped exposures', () => {
   const frames = [
-    { band: 'D1', release: 'r', time: 1, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D1', exposureId: 'exp-1' }, wavelength: 1, bandwidth: 0.1, flux: 2, uncertainty: 0.2, usable: true, flags: 0, fitQuality: 1 }] },
-    { band: 'D2', release: 'r', time: 2, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D2', exposureId: 'exp-2' }, wavelength: 2, bandwidth: 0.2, flux: 3, uncertainty: 0.3, usable: true, flags: 0, fitQuality: 1 }] },
+    { band: 'D1', release: 'qr3', time: 1, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D1', exposureId: 'exp-1' }, wavelength: 1, bandwidth: 0.1, flux: 2, uncertainty: 0.2, usable: true, flags: 0, fitQuality: 1 }] },
+    { band: 'D2', release: 'qr3', time: 2, spectrum: [{ dataOrigin: 'live', provenance: { provider: 'irsa-spherex-photometry', release: 'qr3', detector: 'D2', exposureId: 'exp-2' }, wavelength: 2, bandwidth: 0.2, flux: 3, uncertainty: 0.3, usable: true, flags: 0, fitQuality: 1 }] },
   ]
   const result = buildSpectrum(frames)
   assert.equal(result.available, false)
@@ -53,7 +55,7 @@ test('spectrum stays unavailable when measurements span ungrouped exposures', ()
 test('phase folding bins weighted live points and compares a null model', () => {
   const points = Array.from({ length: 8 }, (_, index) => liveMeasurement('D1', index * 1000, index % 2 ? 2 : 1))
   const curve = buildLightCurve(points.map((measurement) => ({
-    band: 'D1', release: 'r', time: measurement.time, measurement,
+    band: 'D1', release: 'qr3', time: measurement.time, measurement,
   })), 'D1', 6)
   assert.equal(curve.available, true)
   const folded = phaseFold(curve.value, 2000, 4)
@@ -67,9 +69,9 @@ test('phase folding bins weighted live points and compares a null model', () => 
 test('phase folding rejects insufficient cycles and invalid periods', () => {
   const measurement = liveMeasurement('D1', 0)
   const curve = buildLightCurve([
-    { band: 'D1', release: 'r', time: 0, measurement },
-    { band: 'D1', release: 'r', time: 1, measurement: { ...measurement, time: 1 } },
-    { band: 'D1', release: 'r', time: 2, measurement: { ...measurement, time: 2 } },
+    { band: 'D1', release: 'qr3', time: 0, measurement },
+    { band: 'D1', release: 'qr3', time: 1, measurement: { ...measurement, time: 1 } },
+    { band: 'D1', release: 'qr3', time: 2, measurement: { ...measurement, time: 2 } },
   ], 'D1')
   assert.equal(curve.available, true)
   assert.equal(phaseFold(curve.value, 0).available, false)

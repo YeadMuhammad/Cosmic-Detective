@@ -7,6 +7,8 @@ export interface SourceMeasurement {
   provenance: { provider: 'irsa-spherex-photometry'; release: 'qr2' | 'qr3'; detector: string; exposureId: string }
   band: string
   time: number
+  wavelength: number
+  bandwidth: number
   flux: number
   uncertainty: number
   usable: boolean
@@ -70,6 +72,8 @@ export function isUsableMeasurement(measurement: SourceMeasurement | null | unde
     && /^D[1-6]$/.test(measurement.provenance.detector) && measurement.band === measurement.provenance.detector
     && !!measurement.provenance.exposureId && Number.isFinite(measurement.fitQuality) && measurement.fitQuality >= 0
     && (measurement.flags === 0 || measurement.flags === 2 ** 21)
+    && Number.isFinite(measurement.wavelength) && measurement.wavelength > 0
+    && Number.isFinite(measurement.bandwidth) && measurement.bandwidth > 0
     && Number.isFinite(measurement.time) && Number.isFinite(measurement.flux)
     && Number.isFinite(measurement.uncertainty) && measurement.uncertainty > 0)
 }
@@ -88,6 +92,10 @@ export function isUsableSpectrumPoint(point: SourceSpectrumPoint | null | undefi
 
 function usableMeasurements(frames: ObservationMetadata[]): SourceMeasurement[] {
   return frames
+    .filter((frame) => isUsableMeasurement(frame.measurement)
+      && frame.band === frame.measurement.band
+      && frame.release === frame.measurement.provenance.release
+      && frame.time === frame.measurement.time)
     .map((frame) => frame.measurement)
     .filter(isUsableMeasurement)
 }
@@ -104,10 +112,13 @@ export function capabilitiesFor(frames: ObservationMetadata[]): Capabilities {
   const sameChannel = [...new Set(frames.map((frame) => frame.band))]
     .some((band) => timed.filter((frame) => frame.band === band).length >= 2)
   const measurements = usableMeasurements(frames)
-  const measurementGroups = [...new Set(measurements.map((measurement) => `${measurement.band}:${measurement.provenance.release}`))]
+  const measurementGroups = [...new Set(measurements.map((measurement) => [
+    measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4),
+  ].join(':')))]
   const lightCurveGroup = measurementGroups.find((group) => {
-    const [band, release] = group.split(':')
-    const points = measurements.filter((measurement) => measurement.band === band && measurement.provenance.release === release)
+    const [band, release, wavelength, bandwidth] = group.split(':')
+    const points = measurements.filter((measurement) => measurement.band === band && measurement.provenance.release === release
+      && measurement.wavelength.toFixed(4) === wavelength && measurement.bandwidth.toFixed(4) === bandwidth)
     return points.length >= 3 && Math.max(...points.map((point) => point.time)) > Math.min(...points.map((point) => point.time))
   })
   const spectrumPoints = measuredSpectrum(frames)
@@ -118,9 +129,9 @@ export function capabilitiesFor(frames: ObservationMetadata[]): Capabilities {
       : 'No same-channel repeat observations were returned.'),
     difference: unavailable('Requires validated alignment, PSF matching, and quality masks; browse mode does not provide these.'),
     lightcurve: lightCurveGroup
-      ? { state: 'available', reason: `Validated live source photometry is available for ${lightCurveGroup.replace(':', ' · ').toUpperCase()}.` }
+      ? { state: 'available', reason: `Validated live photometry shares detector, release, wavelength, and bandwidth (${lightCurveGroup.toUpperCase()}).` }
       : unavailable(measurements.length
-        ? 'Fewer than three quality-approved same-channel measurements with a time baseline are available.'
+        ? 'Fewer than three quality-approved measurements share a detector, release, effective wavelength, and bandwidth over a positive time baseline.'
         : 'Source photometry has not been extracted from the returned observations.'),
     phaseFold: unavailable('Requires a validated same-channel light curve with uncertainties and enough baseline.'),
     spectrum: unavailable(spectrumPoints.length >= 2

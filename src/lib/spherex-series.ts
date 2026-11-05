@@ -5,6 +5,8 @@ export interface ValidatedLightCurve {
   dataOrigin: 'live'
   band: string
   release: 'qr2' | 'qr3'
+  wavelength: number
+  bandwidth: number
   points: SourceMeasurement[]
   baselineMs: number
 }
@@ -34,28 +36,50 @@ export interface PhaseFoldResult {
   foldedModelImprovement: number
 }
 
-function measurementsFor(frames: ObservationMetadata[], band: string, release: 'qr2' | 'qr3'): SourceMeasurement[] {
-  return frames
-    .map((frame) => frame.measurement)
-    .filter((measurement): measurement is SourceMeasurement => isUsableMeasurement(measurement)
-      && measurement.band === band && measurement.provenance.release === release)
-    .sort((a, b) => a.time - b.time)
+export interface LightCurveGroup {
+  band: string
+  release: 'qr2' | 'qr3'
+  wavelength: number
+  bandwidth: number
+  points: SourceMeasurement[]
+  baselineMs: number
 }
 
-export function buildLightCurve(frames: ObservationMetadata[], band: string, minimumPoints = 3, release?: 'qr2' | 'qr3'): SeriesResult<ValidatedLightCurve> {
-  const releases = release ? [release] : ['qr2', 'qr3'] as const
-  const validGroups = releases.map((candidate) => ({ release: candidate, points: measurementsFor(frames, band, candidate) }))
-  const group = validGroups.find(({ points }) => points.length >= minimumPoints
-    && points[points.length - 1].time > points[0].time)
-  const points = group?.points ?? validGroups.sort((a, b) => b.points.length - a.points.length)[0]?.points ?? []
-  if (points.length < minimumPoints) {
-    return { available: false, reason: `Requires at least ${minimumPoints} quality-approved live measurements in ${band} from one calibration release.` }
+export function lightCurveGroups(frames: ObservationMetadata[], minimumPoints = 3): LightCurveGroup[] {
+  const groups = new Map<string, SourceMeasurement[]>()
+  for (const frame of frames) {
+    const measurement = frame.measurement
+    if (!isUsableMeasurement(measurement)) continue
+    if (frame.band !== measurement.band || frame.release !== measurement.provenance.release || frame.time !== measurement.time) continue
+    const key = [measurement.band, measurement.provenance.release, measurement.wavelength.toFixed(4), measurement.bandwidth.toFixed(4)].join(':')
+    const points = groups.get(key)
+    if (points) points.push(measurement)
+    else groups.set(key, [measurement])
   }
-  const baselineMs = points[points.length - 1].time - points[0].time
-  if (!Number.isFinite(baselineMs) || baselineMs <= 0) {
-    return { available: false, reason: 'Same-channel measurements do not span a positive time baseline.' }
-  }
-  return { available: true, value: { dataOrigin: 'live', band, release: group?.release ?? release ?? points[0].provenance.release, points, baselineMs } }
+  return [...groups.entries()].flatMap(([key, unsorted]) => {
+    const [band, release, wavelength, bandwidth] = key.split(':')
+    const points = unsorted.sort((a, b) => a.time - b.time)
+    const baselineMs = points[points.length - 1].time - points[0].time
+    if (points.length < minimumPoints || !Number.isFinite(baselineMs) || baselineMs <= 0) return []
+    return [{ band, release: release as 'qr2' | 'qr3', wavelength: Number(wavelength), bandwidth: Number(bandwidth), points, baselineMs }]
+  })
+}
+
+export function buildLightCurve(
+  frames: ObservationMetadata[],
+  band: string,
+  minimumPoints = 3,
+  release?: 'qr2' | 'qr3',
+  wavelength?: number,
+  bandwidth?: number,
+): SeriesResult<ValidatedLightCurve> {
+  const groups = lightCurveGroups(frames, minimumPoints).filter((group) => group.band === band
+    && (!release || group.release === release)
+    && (wavelength === undefined || group.wavelength.toFixed(4) === wavelength.toFixed(4))
+    && (bandwidth === undefined || group.bandwidth.toFixed(4) === bandwidth.toFixed(4)))
+  const group = groups[0]
+  if (!group) return { available: false, reason: `Requires at least ${minimumPoints} quality-approved measurements with matching detector, release, effective wavelength, and bandwidth.` }
+  return { available: true, value: { dataOrigin: 'live', ...group } }
 }
 
 export function buildSpectrum(frames: ObservationMetadata[], minimumPoints = 2): SeriesResult<ValidatedSpectrum> {

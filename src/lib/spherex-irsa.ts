@@ -90,7 +90,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
     const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure }
-    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, flux, uncertainty, usable, flags, fitQuality }
+    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     const spectrum: SourceSpectrumPoint = { dataOrigin: 'live', provenance, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })
   }
