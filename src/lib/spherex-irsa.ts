@@ -88,6 +88,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
   const exposures = new Set<string>()
   let returnedTarget: { ra: number; dec: number } | null = null
   let rejected = 0
+  const optionalDiagnostics = ['ext_flg', 'nyquist_comp'].filter((name) => indexes.has(name))
   for (const tr of trs) {
     const cells = [...tr.getElementsByTagName('*')].filter((el) => el.localName === 'TD').map((td) => td.textContent?.trim() ?? '')
     const get = (name: string) => cells[indexes.get(name)!] ?? ''
@@ -105,6 +106,9 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const detector = get('det_id').toUpperCase()
     const exposure = get('lvf_id')
     const deepField = boolean(get('deep_flg'), 'deep-field indicator')
+    const diagnostics = Object.fromEntries(optionalDiagnostics
+      .map((name) => [name, get(name)])
+      .filter(([, value]) => value !== '')) as { ext_flg?: string; nyquist_comp?: string }
     if (!(wavelength > 0 && width > 0 && uncertainty > 0 && Number.isSafeInteger(flags) && flags >= 0 && fitQuality >= 0)) {
       throw new Error('IRSA VOTable contains physically invalid wavelength, bandwidth, uncertainty, flags, or fit quality.')
     }
@@ -128,7 +132,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
     const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure, deepField }
-    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, backgroundFluxMJySr, usable, flags, fitQuality }
+    const measurement: SourceMeasurement = { dataOrigin: 'live', provenance, band: detector, time, wavelength, bandwidth: width, flux, uncertainty, backgroundFluxMJySr, usable, flags, fitQuality, ...(Object.keys(diagnostics).length ? { diagnostics } : {}) }
     const spectrum: SourceSpectrumPoint = { dataOrigin: 'live', provenance, wavelength, bandwidth: width, flux, uncertainty, usable, flags, fitQuality }
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })
   }

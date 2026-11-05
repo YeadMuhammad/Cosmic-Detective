@@ -15,6 +15,8 @@ export interface SourceMeasurement {
   usable: boolean
   flags: number
   fitQuality: number
+  /** Optional IRSA result diagnostics preserved verbatim until their definitions are validated. */
+  diagnostics?: { ext_flg?: string; nyquist_comp?: string }
   upperLimit?: boolean
 }
 
