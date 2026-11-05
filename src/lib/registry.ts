@@ -27,7 +27,7 @@ export interface StoredRegistryTarget {
 
 export interface SpherexRegistry {
   adapter: string
-  snapshotCapturedAt: string
+  snapshotCapturedAt: string | null
   generatedAt: string
   provenance: string
   wavelengthPolicy: { planeBounds: string; wcsWave: string }
@@ -45,7 +45,7 @@ export function loadSpherexRegistry(): Promise<SpherexRegistry> {
     const value: unknown = await response.json()
     if (!value || typeof value !== 'object') throw new Error('Registry response is malformed.')
     const registry = value as Partial<SpherexRegistry>
-    if (typeof registry.adapter !== 'string' || typeof registry.snapshotCapturedAt !== 'string'
+    if (typeof registry.adapter !== 'string' || (registry.snapshotCapturedAt !== null && typeof registry.snapshotCapturedAt !== 'string')
       || typeof registry.generatedAt !== 'string' || typeof registry.provenance !== 'string'
       || !registry.targets || typeof registry.targets !== 'object' || Array.isArray(registry.targets)) {
       throw new Error('Registry response is malformed.')

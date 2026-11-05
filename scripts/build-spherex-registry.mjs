@@ -220,6 +220,7 @@ async function main() {
 
   // ---------------------------------------------------------------- registry
   const snapshotJson = JSON.stringify(snapshot)
+  const generatedAt = new Date().toISOString()
   let manifestTiles = null
   const manifestUrl = new URL(v.manifest ?? DEFAULT_MANIFEST, cwd)
   if (existsSync(manifestUrl)) {
@@ -229,7 +230,7 @@ async function main() {
   const registry = {
     adapter: 'irsa-tap-spherex-v1',
     snapshotCapturedAt: snapshot.capturedAt,
-    generatedAt: snapshot.capturedAt,
+    generatedAt,
     provenance: 'Derived from IRSA TAP spherex.artifact JOIN spherex.plane metadata (snapshot.json); no pixel data is stored here.',
     wavelengthPolicy: {
       planeBounds: 'Plane-level energy bounds describe the whole detector band; they are NOT the wavelength at the target pixel (linear variable filters).',
@@ -240,7 +241,7 @@ async function main() {
   const fixtures = {
     adapter: 'irsa-tap-spherex-v1',
     snapshotCapturedAt: snapshot.capturedAt,
-    generatedAt: snapshot.capturedAt,
+    generatedAt,
     derivation: 'Expected capabilities are DERIVED from snapshot.json via the app adapter (src/lib/irsa.ts) and capabilitiesFor() (src/lib/spherex.ts). Do not hand-edit.',
     targets: {},
   }
