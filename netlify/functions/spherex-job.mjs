@@ -27,8 +27,7 @@ const PRODUCTS = new Set(['cutout-render', 'photometry'])
 const DETECTOR_RE = /^D[1-6]$/
 const COLLECTION_RE = /^qr\d+$/
 const RELEASE_RE = /^l2[a-z]\d*-[A-Za-z0-9.-]+$/
-const OBS_ID_RE = /^[A-Za-z0-9._-]{1,80}$/
-const IRSA_PREFIX = 'https://irsa.ipac.caltech.edu/'
+const OBS_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/
 const DAY_MS = 86_400_000
 
 let goldenCount = 0
@@ -73,11 +72,25 @@ function validation(requestBody) {
   if (!OBS_ID_RE.test(String(obsId ?? ''))) return 'obsId is missing or unsafe.'
   if (!DETECTOR_RE.test(String(detector ?? ''))) return 'detector must be D1..D6.'
   if (!RELEASE_RE.test(String(release ?? ''))) return 'release must look like l2b-v20-2025-240.'
-  if (typeof cutoutUrl !== 'string' || !cutoutUrl.startsWith(IRSA_PREFIX)) return 'cutoutUrl must be an IRSA cutout URL.'
+  if (typeof cutoutUrl !== 'string') return 'cutoutUrl must be an IRSA cutout URL.'
   if (!Number.isFinite(Number(ra)) || Number(ra) < 0 || Number(ra) > 360) return 'RA must be 0–360 degrees.'
   if (!Number.isFinite(Number(dec)) || Number(dec) < -90 || Number(dec) > 90) return 'Dec must be −90–90 degrees.'
   if (!Number.isFinite(Number(sizeDeg)) || Number(sizeDeg) <= 0 || Number(sizeDeg) > 0.5) return 'sizeDeg must be > 0 and at most 0.5 degrees.'
-  if (body.params !== undefined && (typeof body.params !== 'object' || body.params === null)) return 'params must be an object of strings/ints/bools.'
+  if (body.params !== undefined && (typeof body.params !== 'object' || body.params === null || Array.isArray(body.params))) return 'params must be an object of strings/ints/bools.'
+  try {
+    const parsed = new URL(cutoutUrl)
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'irsa.ipac.caltech.edu' || parsed.port || parsed.username || parsed.password || !parsed.pathname.startsWith('/ibe/data/spherex/')) return 'cutoutUrl must be an IRSA SPHEREx cutout URL.'
+    const centerValues = parsed.searchParams.getAll('center')
+    const sizeValues = parsed.searchParams.getAll('size')
+    const center = centerValues.length === 1 && sizeValues.length === 1
+      ? centerValues[0].match(/^\s*(-?\d+(?:\.\d+)?)d?\s*,\s*(-?\d+(?:\.\d+)?)d?\s*$/i)
+      : null
+    const size = Number(parsed.searchParams.get('size'))
+    const expectedFile = `/level2_${obsId}${detector}_spx_${release}.fits`
+    if (!parsed.pathname.includes(`/spherex/${collection}/`) || !parsed.pathname.endsWith(expectedFile)
+      || !center || Number(center[1]) !== Number(ra) || Number(center[2]) !== Number(dec) || size !== Number(sizeDeg)) return 'cutoutUrl must match the requested observation, detector, release, position, and size.'
+    cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params: body.params ?? {} })
+  } catch { return 'Processing request parameters are invalid.' }
   return null
 }
 
@@ -90,7 +103,9 @@ async function createJob(request, supabase) {
   if (problem) return fail(problem)
 
   const { product, collection, obsId, detector, release, ra, dec, sizeDeg, cutoutUrl, params = {} } = requestBody
-  const key = cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params })
+  let key
+  try { key = cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params }) }
+  catch (error) { return fail(`Invalid processing parameters: ${error.message}`) }
 
   // Idempotent: the same input set is the same job, whatever the queue state.
   const existing = await supabase.from('processing_jobs').select('*').eq('cache_key', key).maybeSingle()
@@ -127,12 +142,12 @@ async function createJob(request, supabase) {
     params,
   }).select('*').single()
   if (inserted.error) {
-    // Unique cache_key race: another request created the job first — either way
-    // the client gets the same idempotent answer.
-    return json(
-      { state: 'computing', reason: 'Processing request exists; the SPHEREx worker will produce it.', cacheKey: key },
-      202,
-    )
+    if (inserted.error.code === '23505') {
+      const raced = await supabase.from('processing_jobs').select('*').eq('cache_key', key).maybeSingle()
+      if (raced.error || !raced.data) return fail('Could not load the existing processing job.', 503)
+      return json({ ...capabilityForJob(raced.data), cacheKey: key }, 202)
+    }
+    return fail(`Could not create processing job: ${inserted.error.message}`, 503)
   }
   const logged = await supabase.from('processing_requests').insert({ client_key: clientKey, cache_key: key })
   void logged

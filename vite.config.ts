@@ -1,4 +1,6 @@
 import { copyFileSync, mkdirSync, existsSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -10,10 +12,12 @@ import react from '@vitejs/plugin-react'
  * `node scripts/build-spherex-registry.mjs` regenerates the registry.
  */
 function publishRegistry() {
-  const source = new URL('data/spherex/registry/registry.json', `file://${process.cwd()}/`)
+  const configDir = dirname(fileURLToPath(import.meta.url))
+  const source = resolve(configDir, 'data/spherex/registry/registry.json')
   if (existsSync(source)) {
-    const out = new URL('public/spherex/registry.json', `file://${process.cwd()}/`)
-    mkdirSync(new URL('public/spherex/', `file://${process.cwd()}/`), { recursive: true })
+    const outDir = resolve(configDir, 'public/spherex')
+    const out = resolve(outDir, 'registry.json')
+    mkdirSync(outDir, { recursive: true })
     copyFileSync(source, out)
   }
 }

@@ -58,8 +58,12 @@ test('cacheKey rebuilds every golden key byte for byte', () => {
 })
 
 test('canonical params equal Python canonical forms for golden inputs', () => {
-  for (const { product, params } of GOLDEN_CASES) {
-    assert.equal(canonicalParams(product, params), canonicalParams(product, params))
+  const expected = [
+    '{"pipelineVersion":"1.0","product":"cutout-render","stretch":"asinh"}',
+    '{"product":"photometry"}',
+  ]
+  for (const [{ product, params }, canonical] of GOLDEN_CASES.slice(0, 2).map((item, index) => [item, expected[index]])) {
+    assert.equal(canonicalParams(product, params), canonical)
   }
   assert.equal(canonicalParams('p', { a: 'x', b: 2, c: true, d: null }), '{"a":"x","b":2,"c":true,"d":null,"product":"p"}')
 })

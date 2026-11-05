@@ -40,9 +40,20 @@ let cached: Promise<SpherexRegistry> | null = null
 
 /** Fetches (once) and caches the registry. Rejects when it is not published. */
 export function loadSpherexRegistry(): Promise<SpherexRegistry> {
-  cached ??= fetch(REGISTRY_URL).then((response) => {
+  cached ??= fetch(REGISTRY_URL).then(async (response) => {
     if (!response.ok) throw new Error(`Registry unavailable (HTTP ${response.status}).`)
-    return response.json() as Promise<SpherexRegistry>
+    const value: unknown = await response.json()
+    if (!value || typeof value !== 'object') throw new Error('Registry response is malformed.')
+    const registry = value as Partial<SpherexRegistry>
+    if (typeof registry.adapter !== 'string' || typeof registry.snapshotCapturedAt !== 'string'
+      || typeof registry.generatedAt !== 'string' || typeof registry.provenance !== 'string'
+      || !registry.targets || typeof registry.targets !== 'object' || Array.isArray(registry.targets)) {
+      throw new Error('Registry response is malformed.')
+    }
+    return registry as SpherexRegistry
+  }).catch((error) => {
+    cached = null
+    throw error
   })
   return cached
 }

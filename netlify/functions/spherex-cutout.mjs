@@ -7,7 +7,7 @@ export default async (request) => {
   if (!source) return new Response('Missing cutout URL', { status: 400 })
   let target
   try { target = new URL(source) } catch { return new Response('Invalid cutout URL', { status: 400 }) }
-  if (target.protocol !== 'https:' || target.hostname !== IRSA_HOST || !target.pathname.includes('/ibe/data/spherex/')) {
+  if (target.protocol !== 'https:' || target.hostname !== IRSA_HOST || !target.pathname.startsWith('/ibe/data/spherex/')) {
     return new Response('Only IRSA SPHEREx cutouts are allowed', { status: 400 })
   }
   const rawCenter = target.searchParams.get('center')

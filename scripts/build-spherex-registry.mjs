@@ -111,14 +111,14 @@ async function tapQuery(adql, tries = 3) {
 }
 
 /** ADQL for ALL SPHEREx spectral-image artifacts covering (ra, dec), oldest first. */
-function buildRegistryQuery(ra, dec, cols, maxRows) {
+function buildRegistryQuery(ra, dec, cols, maxRows, radiusDeg) {
   const sel = ['a.uri AS uri', 'p.time_bounds_lower AS t_lo']
   if (cols.tHi) sel.push(`${cols.tHi} AS t_hi`)
   sel.push('p.energy_bandpassname AS band')
   if (cols.eLo) sel.push(`${cols.eLo} AS e_lo`)
   if (cols.eHi) sel.push(`${cols.eHi} AS e_hi`)
   return `SELECT TOP ${maxRows} ${sel.join(', ')} FROM spherex.artifact a JOIN spherex.plane p ON a.planeid = p.planeid ` +
-    `WHERE 1 = CONTAINS(POINT('ICRS', ${ra}, ${dec}), p.poly) ORDER BY p.time_bounds_lower`
+    `WHERE 1 = INTERSECTS(CIRCLE('ICRS', ${ra}, ${dec}, ${radiusDeg}), p.poly) ORDER BY p.time_bounds_lower`
 }
 
 /** Keep only the columns the adapter parses, so the snapshot stays small. */
@@ -147,9 +147,10 @@ async function main() {
   })
   if (v.help) return usage()
   if (v.list) { for (const t of SEED_TARGETS) console.log(`${t.id.padEnd(16)} ${t.kind.padEnd(14)} RA ${t.ra} Dec ${t.dec} r ${t.radiusDeg}°`); return }
+  if (v.targets && !v.out) throw new Error('--targets requires --out so a partial build cannot overwrite the full registry.')
   const maxRows = Math.max(1, Math.round(Number(v['max-rows'])))
   const delayMs = Math.max(0, Math.round(Number(v['delay-ms'])))
-  const useCache = !(v['no-cache'])
+  const useCache = !(v['no-cache'] || v.force)
   const selected = v.targets
     ? v.targets.split(',').map((id) => {
         const meta = SEED_TARGETS.find((t) => t.id === id.trim())
@@ -165,21 +166,18 @@ async function main() {
   await mkdir(cacheDir, { recursive: true })
 
   // --keep-old: the previous snapshot becomes history; otherwise it is replaced.
+  let archiveSnapshot = null
   if (v['keep-old'] && existsSync(snapshotUrl)) {
     try {
       const prior = JSON.parse(await readFile(snapshotUrl, 'utf8'))
-      if (prior?.adapter === 'irsa-tap-spherex-v1' && prior.capturedAt) {
-        const historyDir = new URL('history/', outDir)
-        await mkdir(historyDir, { recursive: true })
-        await rename(snapshotUrl, new URL(`snapshot-${prior.capturedAt.replace(/[:.]/g, '-')}.json`, historyDir))
-      }
+      if (prior?.adapter === 'irsa-tap-spherex-v1' && prior.capturedAt) archiveSnapshot = prior.capturedAt
     } catch { /* keep the current snapshot if it cannot be archived */ }
   }
 
   const snapshot = {
     adapter: 'irsa-tap-spherex-v1',
     irsaRoot: IRSA_ROOT,
-    capturedAt: new Date().toISOString(),
+    capturedAt: null,
     perTargetMaxRows: maxRows,
     truncatedTargets: [],
     targets: {},
@@ -191,28 +189,34 @@ async function main() {
   for (const meta of selected) {
     const cacheFile = new URL(`tap-${meta.id}.json`, cacheDir)
     let csv = null
+    let cacheEntry = null
     if (useCache) {
-      try { csv = JSON.parse(await readFile(cacheFile, 'utf8'))?.csv ?? null } catch { /* not cached */ }
+      try {
+        cacheEntry = JSON.parse(await readFile(cacheFile, 'utf8'))
+        if (cacheEntry?.maxRows === maxRows && cacheEntry?.ra === meta.ra && cacheEntry?.dec === meta.dec && cacheEntry?.radiusDeg === meta.radiusDeg && JSON.stringify(cacheEntry?.columns) === JSON.stringify(planeColumns)) csv = cacheEntry.csv ?? null
+      } catch { /* not cached */ }
     }
     if (!csv) {
       queried++
       if (queried > 1) await sleep(delayMs)
       console.log(`${meta.id.padEnd(16)} querying IRSA TAP …`)
-      csv = await tapQuery(buildRegistryQuery(meta.ra, meta.dec, planeColumns, maxRows))
-      try { await writeFile(cacheFile, JSON.stringify({ ra: meta.ra, dec: meta.dec, csv })) } catch { /* best effort */ }
+      csv = await tapQuery(buildRegistryQuery(meta.ra, meta.dec, planeColumns, maxRows, meta.radiusDeg))
+      cacheEntry = { ra: meta.ra, dec: meta.dec, radiusDeg: meta.radiusDeg, maxRows, columns: planeColumns, csv, fetchedAt: new Date().toISOString() }
+      try { await writeFile(cacheFile, JSON.stringify(cacheEntry)) } catch { /* best effort */ }
     } else {
       console.log(`${meta.id.padEnd(16)} cached TAP rows`)
     }
     const rows = parseCsv(csv).map(trimRow)
     const truncated = rows.length >= maxRows
-    snapshot.targets[meta.id] = { meta, truncated, rows }
+    snapshot.targets[meta.id] = { meta, truncated, rows, fetchedAt: cacheEntry?.fetchedAt ?? null }
     if (truncated) snapshot.truncatedTargets = [...snapshot.truncatedTargets, meta.id]
     console.log(`${meta.id.padEnd(16)} rows=${rows.length}${truncated ? `  (hit the ${maxRows}-row limit)` : ''}`)
   }
 
-  // A snapshot rebuilt entirely from cached TAP rows still carries the SAME
-  // capture semantics as a fresh fetch: rows came from this run's cache, which
-  // was itself written from an IRSA response, so `capturedAt` marks this build.
+  const fetchTimes = Object.values(snapshot.targets).map((target) => target.fetchedAt)
+  snapshot.capturedAt = fetchTimes.length && fetchTimes.every(Boolean)
+    ? fetchTimes.sort()[0]
+    : null
 
   // ---------------------------------------------------------------- registry
   const snapshotJson = JSON.stringify(snapshot)
@@ -243,7 +247,7 @@ async function main() {
   for (const meta of selected) {
     const snap = snapshot.targets[meta.id]
     if (!snap) continue
-    const target = buildRegistryTarget(meta, snap.rows, manifestTiles)
+    const target = buildRegistryTarget(meta, snap.rows, manifestTiles, snap.truncated)
     target.truncated = snap.truncated
     const observations = target.observations.map((o) => ({
       uri: absoluteUrl(o.uri),
@@ -283,6 +287,11 @@ async function main() {
     console.log(`${meta.id.padEnd(16)} registry groups=${target.groups.length}  frames=${frames.length}`)
   }
 
+  if (archiveSnapshot) {
+    const historyDir = new URL('history/', outDir)
+    await mkdir(historyDir, { recursive: true })
+    await rename(snapshotUrl, new URL(`snapshot-${archiveSnapshot.replace(/[:.]/g, '-')}.json`, historyDir))
+  }
   await writeFile(snapshotUrl, snapshotJson + '\n')
   await writeFile(new URL('registry.json', outDir), JSON.stringify(registry) + '\n')
   await writeFile(new URL('acceptance-fixtures.json', outDir), JSON.stringify(fixtures, null, 1) + '\n')

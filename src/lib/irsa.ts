@@ -196,7 +196,7 @@ export function parseSnapshot(rows: TapRow[]): SourceObservation[] {
  * channel is the detector array. Re-later reprocessings of the same exposure
  * appear as additional entries of the same group, ordered best-release first.
  */
-export function groupObservations(observations: RegistryObservation[]): ObservationGroup[] {
+export function groupObservations(observations: RegistryObservation[], truncated = false): ObservationGroup[] {
   const map = new Map<string, ObservationGroup>()
   for (const observation of observations) {
     const key = `${observation.obsId}|${observation.band}`
@@ -211,7 +211,7 @@ export function groupObservations(observations: RegistryObservation[]): Observat
         releases: [],
         mjdStart: observation.mjdStart,
         mjdEnd: observation.mjdEnd,
-        truncated: false,
+        truncated,
       }
       map.set(key, group)
     }
@@ -350,15 +350,16 @@ export function buildRegistryTarget(
   meta: RegistryTargetMeta,
   rows: TapRow[],
   manifestTiles?: Record<string, unknown>,
+  truncated = false,
 ): RegistryTarget {
   const observations = parseSnapshot(rows)
   if (manifestTiles) applyManifestWavelengths(observations, manifestTiles as never)
-  const groups = groupObservations(observations)
+  const groups = groupObservations(observations, truncated)
   const summary = summarizeTarget(observations, groups)
   const verified = observations.filter((observation) => observation.wavelengthTier === 'wcs-wave' && Number.isFinite(observation.wavelengthAtTargetUm))
   return {
     meta,
-    truncated: false,
+    truncated,
     observations,
     groups,
     summary,
