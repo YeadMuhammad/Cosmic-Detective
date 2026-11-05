@@ -31,9 +31,11 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
   ZODI is the modeled background and is never subtracted twice) → extract
   (PSF/ePSF where valid, aperture fallback documented per point).
 
-The deep native-pixel photometry pipelines land with the next PLAN milestone;
-today the worker stores its cutout verification record as the product so the
-orchestration contract is exercised end to end.
+Native-pixel photometry evaluates the target WCS, selects the target
+wavelength plane from a compatible PSF cube when available, and otherwise
+records an aperture fallback. IMAGE is not modified by ZODI subtraction; the
+result records whether the ZODI plane was present and includes measurement,
+background, and calibration uncertainty components.
 
 ## Run
 

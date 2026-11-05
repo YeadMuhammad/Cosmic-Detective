@@ -1,11 +1,11 @@
 """Processing-product registry for the SPHEREx worker.
 
 Each product maps a job's requested product name to the pipeline that builds
-it. Heavy dependencies (astropy/photutils/reproject via supabase-py storage)
-are imported lazily inside the pipeline functions; when they are missing the
-worker marks the job failed with a specific reason instead of pretending the
-product is unavailable for scientific reasons. Netlify/Supabase orchestrate;
-this module never talks to Netlify.
+it. Optional processing dependencies are detected before the worker starts a
+product; when a required dependency is missing the worker marks the job failed
+with a specific reason instead of pretending the product is unavailable for
+scientific reasons. Netlify/Supabase orchestrate; this module never talks to
+Netlify.
 """
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ def product_dependencies(product: str) -> list:
     if product == "cutout-render":
         names += ["astropy", "numpy"]
     elif product == "photometry":
-        names += ["astropy", "numpy", "photutils", "reproject"]
+        names += ["astropy", "numpy"]
     return sorted(set(names))
 
 

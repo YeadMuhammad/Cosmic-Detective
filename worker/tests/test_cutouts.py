@@ -97,7 +97,7 @@ class ProductStaging(unittest.TestCase):
         self.assertEqual(products.product_dependencies("cutout-render"), ["astropy", "numpy"])
         self.assertEqual(
             products.product_dependencies("photometry"),
-            ["astropy", "numpy", "photutils", "reproject"],
+            ["astropy", "numpy"],
         )
 
 

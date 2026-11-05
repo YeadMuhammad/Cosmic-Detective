@@ -17,8 +17,8 @@ Env:
   WORKER_ID               identity for claim bookkeeping (default host-pid)
 
 Never runs inside a Netlify Function; deploy near IRSA (see worker/README.md).
-Stub processing stages are wired for 'cutout-render' and 'photometry'; the
-deep native-pixel photometry pipelines land with the next milestone.
+The native-pixel photometry path reports measured flux, target-pixel wavelength,
+quality flags, and an uncertainty budget without subtracting ZODI twice.
 """
 from __future__ import annotations
 
@@ -34,6 +34,7 @@ from lib import cutouts, products
 from lib.cache_keys import upload_path
 from lib.jobs import Jobs, RestError
 from lib.cutouts import NotFits, PayloadTooLarge
+from lib.photometry import PhotometryError, extract_source_photometry
 
 BUCKET = os.environ.get("SPHEREX_BUCKET", "spherex-products")
 POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "5"))
@@ -61,19 +62,34 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         raise RuntimeError("job is missing cache_key or cutout_url")
 
     # 1. Verify cutout support FIRST — never accept a 'cutout' that is a full MEF.
-    verified = cutouts.verify_cutout_support(cutout_url)
+    if product == "photometry":
+        body, verified = cutouts.download_verified_cutout(cutout_url)
+    else:
+        body = None
+        verified = cutouts.verify_cutout_support(cutout_url)
     print(f"  {job.get('id', '?')}: cutout verified ({verified['bytes']} bytes, {verified['headerKeywords']})")
 
-    # 2. Product work happens here in later milestones (native-pixel photometry
-    #    is the very next one). The temporary product is the verification
-    #    record itself, stored under the versioned cache key, so the
-    #    orchestration contract is exercised end to end today.
+    # 2. Build the product only after the bounded cutout has been verified.
+    if product == "photometry":
+        payload_object = extract_source_photometry(
+            body,
+            float(job["ra"]),
+            float(job["dec"]),
+            job.get("params") or {},
+        )
+    else:
+        payload_object = {
+            "product": product,
+            "cacheKey": cache_key_value,
+            "cutout": verified,
+            "stages": [{"stage": stage, "description": description} for stage, description in products.staged_products(product, job)],
+            "worker": WORKER_ID,
+            "finishedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+    payload_object.update({"product": product, "cacheKey": cache_key_value, "cutout": verified})
     suffix = ".json"
     payload = json.dumps({
-        "product": product,
-        "cacheKey": cache_key_value,
-        "cutout": verified,
-        "stages": [{"stage": stage, "description": description} for stage, description in products.staged_products(product, job)],
+        **payload_object,
         "worker": WORKER_ID,
         "finishedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }, indent=2).encode("utf-8")
@@ -118,7 +134,7 @@ def main() -> int:
                 continue
             try:
                 path = process_job(job, jobs, supabase_url)
-            except (PayloadTooLarge, NotFits, RuntimeError, ValueError, KeyError, RestError) as error:
+            except (PayloadTooLarge, NotFits, PhotometryError, RuntimeError, ValueError, KeyError, RestError) as error:
                 reason = str(error)
                 print(f"  job {job.get('id', '?')}: FAILED — {reason}")
                 jobs.fail(job.job_id, reason)

@@ -65,6 +65,13 @@ def verify_cutout_support(url: str, cap_bytes: int = 33_554_432, timeout: float 
     which the worker records as the job's failure reason (never a silent
     fallback to a full-MEF download).
     """
+    body, descriptor = download_verified_cutout(url, cap_bytes, timeout)
+    del body
+    return descriptor
+
+
+def download_verified_cutout(url: str, cap_bytes: int = 33_554_432, timeout: float = 30.0) -> tuple[bytes, dict]:
+    """Downloads one bounded FITS cutout and returns its bytes plus metadata."""
     request = urllib.request.Request(url, headers={
         "Accept": "application/fits, */*;q=0.8",
         "User-Agent": USER_AGENT,
@@ -75,7 +82,7 @@ def verify_cutout_support(url: str, cap_bytes: int = 33_554_432, timeout: float 
             fits_ok = verify_fits(body[:FITS_BLOCK])
             if not fits_ok:
                 raise NotFits(f"response is not FITS ({len(body)} bytes)")
-            return {
+            return body, {
                 "url": url,
                 "bytes": len(body),
                 "cutoutVerified": True,
