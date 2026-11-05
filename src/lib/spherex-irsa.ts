@@ -46,18 +46,26 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     || !Number.isFinite(expected.dec) || expected.dec < -90 || expected.dec > 90) {
     throw new Error('Portal target coordinate is outside the valid ICRS RA/Dec range.')
   }
-  const fields = elements.filter((el) => el.localName === 'FIELD')
-  const names = fields.map((field) => (field.getAttribute('name') || field.getAttribute('ID') || '').trim().toLowerCase())
-  const indexes = new Map(names.map((name, index) => [name, index]))
-  const missing = requiredColumns.filter((name) => !indexes.has(name))
-  if (missing.length) throw new Error(`IRSA VOTable is missing required columns: ${missing.join(', ')}.`)
+  const candidates = elements.filter((el) => el.localName === 'TABLE').map((table) => {
+    const tableElements = [...table.getElementsByTagName('*')]
+    const fields = tableElements.filter((el) => el.localName === 'FIELD')
+    const names = fields.map((field) => (field.getAttribute('name') || field.getAttribute('ID') || '').trim().toLowerCase())
+    const indexes = new Map(names.map((name, index) => [name, index]))
+    const data = tableElements.find((el) => el.localName === 'TABLEDATA')
+    return { fields, indexes, data, complete: requiredColumns.every((name) => indexes.has(name)) }
+  }).filter((candidate) => candidate.complete)
+  if (candidates.length !== 1) {
+    throw new Error(candidates.length
+      ? 'IRSA VOTable contains multiple complete photometry tables; import one target at a time.'
+      : `IRSA VOTable has no table with all required columns: ${requiredColumns.join(', ')}.`)
+  }
+  const { fields, indexes, data } = candidates[0]
+  if (!data) throw new Error('IRSA VOTable does not use TABLEDATA serialization; this result format is not supported.')
   for (const name of requiredColumns) {
     const field = fields[indexes.get(name)!]
     if (!unitsMatch(name, field.getAttribute('unit'))) throw new Error(`Unexpected or missing unit for IRSA ${name}; expected ${EXPECTED_UNITS[name]?.join(' or ') ?? 'a documented unit'}.`)
   }
-  const table = elements.find((el) => el.localName === 'TABLEDATA')
-  if (!table) throw new Error('IRSA VOTable must contain TABLEDATA; this result serialization is not supported.')
-  const trs = [...table.getElementsByTagName('*')].filter((el) => el.localName === 'TR')
+  const trs = [...data.getElementsByTagName('*')].filter((el) => el.localName === 'TR')
   if (!trs.length) throw new Error('IRSA VOTable contains no photometry rows.')
 
   const observations: ObservationMetadata[] = []
