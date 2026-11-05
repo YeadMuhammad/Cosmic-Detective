@@ -40,14 +40,29 @@ export async function requestProcessing(product: ProcessingProduct, input: {
   cutoutUrl: string
   params?: Record<string, string | number | boolean>
 }, endpoint = '/.netlify/functions/spherex-job'): Promise<ProcessingCapabilityRecord> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ product, ...input }),
-  })
+  let response: Response
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product, ...input }),
+    })
+  } catch {
+    return {
+      state: 'unavailable',
+      reason: import.meta.env.DEV
+        ? 'Could not reach the local processing endpoint. If you started with `npm run dev`, use `netlify dev` because plain Vite does not run Netlify Functions.'
+        : 'Could not contact the Netlify processing function. Check the function deployment and network connection.',
+    }
+  }
   const body = (await response.json().catch(() => null)) as Partial<ProcessingCapabilityRecord> | null
   if (!body || (body.state !== 'available' && body.state !== 'computing' && body.state !== 'unavailable')) {
-    return ORCHESTRATION_UNAVAILABLE
+    return {
+      state: 'unavailable',
+      reason: import.meta.env.DEV
+        ? `The local endpoint returned no valid function response (HTTP ${response.status}). If you started with 'npm run dev', use 'netlify dev'; plain Vite does not run Netlify Functions.`
+        : `The Netlify processing function returned an invalid response (HTTP ${response.status}). Check the function logs and deployment configuration.`,
+    }
   }
   return { ...ORCHESTRATION_UNAVAILABLE, ...body }
 }
