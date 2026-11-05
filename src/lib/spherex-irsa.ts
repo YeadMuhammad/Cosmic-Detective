@@ -1,4 +1,4 @@
-import type { ObservationMetadata, SourceMeasurement, SourceSpectrumPoint } from './spherex'
+import { isAnalysisEligibleFlags, type ObservationMetadata, type SourceMeasurement, type SourceSpectrumPoint } from './spherex'
 
 export interface ImportedIRSAResult {
   target: { ra: number; dec: number }
@@ -19,8 +19,6 @@ const EXPECTED_UNITS: Record<string, string[]> = {
   ra: ['deg', 'degree'],
   dec: ['deg', 'degree'],
 }
-const NOMINAL_FLAGS = new Set([0, 2 ** 21])
-
 function finite(value: string, field: string): number {
   const parsed = Number(value)
   if (!value || !Number.isFinite(parsed)) throw new Error(`IRSA result has an invalid ${field} value.`)
@@ -88,7 +86,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     const release = get('data_collection').toLowerCase()
     const detector = get('det_id').toUpperCase()
     const exposure = get('lvf_id')
-    if (!(wavelength > 0 && width > 0 && uncertainty > 0 && Number.isInteger(flags) && flags >= 0 && fitQuality >= 0)) {
+    if (!(wavelength > 0 && width > 0 && uncertainty > 0 && Number.isSafeInteger(flags) && flags >= 0 && fitQuality >= 0)) {
       throw new Error('IRSA VOTable contains physically invalid wavelength, bandwidth, uncertainty, flags, or fit quality.')
     }
     if (!['qr2', 'qr3'].includes(release) || !/^D[1-6]$/.test(detector) || !exposure) {
@@ -103,7 +101,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
       throw new Error('IRSA result target does not match the portal coordinate (tolerance: 6 arcsec, approximately one SPHEREx pixel).')
     }
     if (ra < 0 || ra > 360 || dec < -90 || dec > 90) throw new Error('IRSA VOTable contains coordinates outside the valid ICRS RA/Dec range.')
-    const usable = NOMINAL_FLAGS.has(flags)
+    const usable = isAnalysisEligibleFlags(flags)
     if (!usable) rejected += 1
     const time = (mjd - 40587) * 86400000
     const provenance = { provider: 'irsa-spherex-photometry' as const, release: release as 'qr2' | 'qr3', detector, exposureId: exposure }
@@ -112,7 +110,7 @@ export function parseIRSASpectrophotometry(xml: string, expected: { ra: number; 
     observations.push({ band: detector, release, time, wavelength, position: { ra, dec }, measurement, spectrum: [spectrum] })
   }
   if (!observations.some((observation) => observation.measurement?.usable)) {
-    throw new Error('No rows have nominal IRSA photometry flags (0 or SOURCE only); the result cannot enable analysis.')
+    throw new Error('No rows have only the approved informational IRSA flags (SOURCE and/or FULLSAMPLE); the result cannot enable analysis.')
   }
   return { target: expected, observations, rows: observations.length, rejected, source: 'IRSA SPHEREx Spectrophotometry Tool' }
 }

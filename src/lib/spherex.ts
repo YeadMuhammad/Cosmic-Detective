@@ -65,6 +65,12 @@ export interface Capability {
 export type Capabilities = Record<CapabilityId, Capability>
 
 const unavailable = (reason: string): Capability => ({ state: 'unavailable', reason })
+const analysisEligibleFlags = new Set([0, 2 ** 12, 2 ** 21, 2 ** 12 + 2 ** 21])
+
+/** Permit only documented informational bits; all warning or unknown bits remain gated. */
+export function isAnalysisEligibleFlags(flags: number): boolean {
+  return Number.isSafeInteger(flags) && flags >= 0 && analysisEligibleFlags.has(flags)
+}
 
 export function isUsableMeasurement(measurement: SourceMeasurement | null | undefined): measurement is SourceMeasurement {
   return Boolean(measurement && measurement.dataOrigin === 'live' && measurement.usable
@@ -72,7 +78,7 @@ export function isUsableMeasurement(measurement: SourceMeasurement | null | unde
     && ['qr2', 'qr3'].includes(measurement.provenance.release)
     && /^D[1-6]$/.test(measurement.provenance.detector) && measurement.band === measurement.provenance.detector
     && !!measurement.provenance.exposureId && Number.isFinite(measurement.fitQuality) && measurement.fitQuality >= 0
-    && (measurement.flags === 0 || measurement.flags === 2 ** 21)
+    && isAnalysisEligibleFlags(measurement.flags)
     && Number.isFinite(measurement.wavelength) && measurement.wavelength > 0
     && Number.isFinite(measurement.bandwidth) && measurement.bandwidth > 0
     && Number.isFinite(measurement.time) && Number.isFinite(measurement.flux)
@@ -86,7 +92,7 @@ export function isUsableSpectrumPoint(point: SourceSpectrumPoint | null | undefi
     && ['qr2', 'qr3'].includes(point.provenance.release)
     && /^D[1-6]$/.test(point.provenance.detector) && !!point.provenance.exposureId
     && Number.isFinite(point.fitQuality) && point.fitQuality >= 0
-    && (point.flags === 0 || point.flags === 2 ** 21)
+    && isAnalysisEligibleFlags(point.flags)
     && Number.isFinite(point.wavelength) && point.wavelength > 0
     && Number.isFinite(point.bandwidth) && point.bandwidth > 0
     && Number.isFinite(point.flux) && Number.isFinite(point.uncertainty) && point.uncertainty > 0)
