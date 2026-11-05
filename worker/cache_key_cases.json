@@ -1,0 +1,62 @@
+{
+  "keyVersion": "v1",
+  "comment": [
+    "Golden cache keys shared by worker/lib/cache_keys.py (Python) and",
+    "netlify/lib/processing.mjs (JavaScript). Each case asserts the exact key",
+    "string for its input; both implementations run every case. Regenerate the",
+    "file alongside a KEY_VERSION bump only — never edit expected keys casually."
+  ],
+  "cases": [
+    {
+      "name": "barnard-d1-cutout-render",
+      "input": {
+        "product": "cutout-render",
+        "collection": "qr2",
+        "obsId": "2025W17_4B_0136_1",
+        "detector": "D1",
+        "release": "l2b-v20-2025-240",
+        "ra": 269.4587,
+        "dec": 4.609,
+        "sizeDeg": 0.08,
+        "params": { "pipelineVersion": "1.0", "stretch": "asinh" }
+      },
+      "key": "spherex/v1/cutout-render/qr2/2025W17_4B_0136_1/D1/l2b-v20-2025-240/ra269.458700-dec4.609000-s0.0800/b213ede4e9d0"
+    },
+    {
+      "name": "empty-params-still-hash",
+      "input": {
+        "product": "photometry",
+        "collection": "qr3",
+        "obsId": "2026W22_1A_0026_2",
+        "detector": "D6",
+        "release": "l2b-v25-2026-150",
+        "ra": 0,
+        "dec": -90,
+        "sizeDeg": 1.5,
+        "params": {}
+      },
+      "key": "spherex/v1/photometry/qr3/2026W22_1A_0026_2/D6/l2b-v25-2026-150/ra0.000000-dec-90.000000-s1.5000/781508e680da"
+    },
+    {
+      "name": "params-order-does-not-matter",
+      "input": {
+        "product": "psf-fit",
+        "collection": "qr3",
+        "obsId": "2025W40_2B_0170_3",
+        "detector": "D3",
+        "release": "l2b-v21-2025-280",
+        "ra": 123.456789,
+        "dec": -12.345679,
+        "sizeDeg": 0.0401,
+        "params": { "b": 2, "a": "seed", "c": true }
+      },
+      "key": "spherex/v1/psf-fit/qr3/2025W40_2B_0170_3/D3/l2b-v21-2025-280/ra123.456789-dec-12.345679-s0.0401/05f5cab6852a"
+    }
+  ],
+  "invalid": [
+    { "name": "path traversal product", "input": { "product": "../etc", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": 1 } },
+    { "name": "empty release", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "", "ra": 0, "dec": 0, "sizeDeg": 1 } },
+    { "name": "floating params", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": 1, "params": { "tol": 0.5 } } },
+    { "name": "non-finite size", "input": { "product": "p", "collection": "qr2", "obsId": "o", "detector": "D1", "release": "r", "ra": 0, "dec": 0, "sizeDeg": "big" } }
+  ]
+}
