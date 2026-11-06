@@ -170,10 +170,13 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
 
 def upload_product(supabase_url: str, path: str, payload: bytes) -> None:
     """Uploads one product artifact to Supabase Storage (service key auth)."""
+    service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+    if not service_key:
+        raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY is required to upload worker products")
     url = f"{supabase_url.rstrip('/')}/storage/v1/object/{BUCKET}/{path}"
     request = urllib.request.Request(url, data=payload, method="POST", headers={
-        "apikey": os.environ["SUPABASE_SERVICE_KEY"],
-        "Authorization": f"Bearer {os.environ['SUPABASE_SERVICE_KEY']}",
+        "apikey": service_key,
+        "Authorization": f"Bearer {service_key}",
         "Content-Type": "application/json",
         "x-upsert": "true",
         "User-Agent": cutouts.USER_AGENT,

@@ -156,9 +156,11 @@ async function createJob(request, supabase) {
   try { key = cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params }) }
   catch (error) { return fail(`Invalid processing parameters: ${error.message}`) }
 
-  // Idempotent: the same input set is the same job, whatever the queue state.
+  // Return active/successful cache hits. A failed job can be retried with the
+  // same input key after a transient worker or upstream archive failure.
   const existing = await supabase.from('processing_jobs').select('*').eq('cache_key', key).maybeSingle()
-  if (existing.data) return json(capabilityForJob(existing.data))
+  if (existing.error) return fail(`Could not load the existing processing job: ${existing.error.message}`, 503)
+  if (existing.data && existing.data.status !== 'failed') return json(capabilityForJob(existing.data))
 
   const salt = process.env.RATE_LIMIT_SALT || 'cosmic-detective'
   const clientKey = clientKeyHash(request, salt)
@@ -175,6 +177,22 @@ async function createJob(request, supabase) {
       429,
       { 'Retry-After': String(decision.retryAfterMs) },
     )
+  }
+
+  if (existing.data?.status === 'failed') {
+    const retried = await supabase.from('processing_jobs').update({
+      status: 'queued', error_reason: null, result_path: null,
+      worker_id: null, claimed_at: null, finished_at: null,
+    }).eq('id', existing.data.id).eq('status', 'failed').select('*').maybeSingle()
+    if (retried.error) return fail(`Could not requeue the failed processing job: ${retried.error.message}`, 503)
+    if (retried.data) {
+      await supabase.from('processing_requests').insert({ client_key: clientKey, cache_key: key })
+      return json({ ...capabilityForJob(retried.data), cacheKey: key }, 202)
+    }
+    // A concurrent retry may already have changed the row from failed.
+    const raced = await supabase.from('processing_jobs').select('*').eq('cache_key', key).maybeSingle()
+    if (raced.error || !raced.data) return fail('Could not load the retried processing job.', 503)
+    return json({ ...capabilityForJob(raced.data), cacheKey: key }, 202)
   }
 
   const inserted = await supabase.from('processing_jobs').insert({
