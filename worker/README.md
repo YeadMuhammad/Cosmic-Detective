@@ -14,6 +14,8 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
   (SQL `for update skip locked`, see `supabase/migrations/20261105000000_processing_jobs.sql`).
   Apply `supabase/migrations/20261106000000_blink_pair_product.sql` to allow the
   `blink-pair` product before submitting registered comparison jobs.
+  Apply `supabase/migrations/20261106010000_band_composite_product.sql` before
+  submitting false-color channel-composite jobs.
 - **Verify cutout support first.** Every download goes through bounded
   `verify_cutout_support()`; a response bigger than the cap, or anything that
   is not FITS, fails the job with that reason. Full MEFs are never downloaded.
@@ -36,6 +38,10 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
   planes to a shared target-centered TAN grid and returns both epochs with a
   shared display stretch. This is visual comparison only: flags are not
   overlaid and it is not a difference or detection product.
+- `band-composite`: accepts three distinct detector inputs from one collection
+  and processing release, reprojects them to a common sky grid, and makes an
+  independently stretched RGB view. It is false-color visualization, not a
+  calibrated color measurement or spectrum.
 - `photometry`: verifies the cutout, then fails closed with the missing science
   calibration requirements. No photometry artifact is currently published.
 

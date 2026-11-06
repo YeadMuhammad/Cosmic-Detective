@@ -23,7 +23,7 @@ import { createHash } from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { assertGoldenCacheKeys, capabilityForJob, cacheKey, rateLimitDecision, RATE_LIMIT } from '../lib/processing.mjs'
 
-const PRODUCTS = new Set(['cutout-render', 'photometry', 'blink-pair'])
+const PRODUCTS = new Set(['cutout-render', 'photometry', 'blink-pair', 'band-composite'])
 const DETECTOR_RE = /^D[1-6]$/
 const COLLECTION_RE = /^qr\d+$/
 const RELEASE_RE = /^l2[a-z]\d*-[A-Za-z0-9.-]+$/
@@ -113,6 +113,30 @@ function validation(requestBody) {
     }
     if (!['0', '0.001', '0.002', '0.005', '0.01', '0.02'].includes(String(p.maxWavelengthDeltaUm ?? '0'))) return 'maxWavelengthDeltaUm must be a supported conservative tolerance in microns.'
     if (String(p.maxBandwidthFraction ?? '0') !== '0') return 'Blink pairs currently require matching target-pixel bandwidths.'
+  }
+  if (product === 'band-composite') {
+    const p = body.params ?? {}
+    let channels
+    try { channels = JSON.parse(p.channels) } catch { return 'Band composite requires a JSON array of RGB channel inputs.' }
+    if (!Array.isArray(channels) || channels.length !== 3
+      || new Set(channels.map((channel) => channel?.color)).size !== 3
+      || new Set(channels.map((channel) => channel?.detector)).size !== 3
+      || !['R', 'G', 'B'].every((color) => channels.some((channel) => channel?.color === color))) {
+      return 'Band composite requires one distinct detector input for each R, G, and B channel.'
+    }
+    if (!channels.some((channel) => channel?.cutoutUrl === cutoutUrl && channel?.detector === detector)) {
+      return 'The primary cutout must be one of the selected RGB channel inputs.'
+    }
+    for (const channel of channels) {
+      if (!channel || !OBS_ID_RE.test(String(channel.obsId ?? ''))
+        || !DETECTOR_RE.test(String(channel.detector ?? ''))
+        || channel.collection !== collection || channel.release !== release
+        || !validateCutout(channel.cutoutUrl, collection, channel.obsId, channel.detector, release)) {
+        return 'Every RGB input must be a valid IRSA cutout from the same collection and processing release at the requested position.'
+      }
+    }
+    const pixelScale = Number(p.pixelScaleArcsec ?? 6.2)
+    if (!Number.isFinite(pixelScale) || pixelScale < 0.1 || pixelScale > 60) return 'Composite pixel scale is outside supported bounds.'
   }
   try { cacheKey(product, { collection, obsId, detector, release, ra, dec, sizeDeg, params: body.params ?? {} }) }
   catch { return 'Processing request parameters are invalid.' }

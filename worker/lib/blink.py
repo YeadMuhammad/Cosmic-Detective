@@ -147,3 +147,79 @@ def register_blink_pair(first_fits: bytes, second_fits: bytes, ra: float, dec: f
         },
         "semantics": "visual-blink-only; pixel flags are not overlaid; not a calibrated difference or detection",
     }
+
+
+def compose_band_channels(channels: list[dict[str, Any]], ra: float, dec: float,
+                          size_deg: float, pixel_scale_arcsec: float = 6.2) -> dict[str, Any]:
+    """Make a false-color display from three independently stretched channels.
+
+    This is for qualitative exploration only: each RGB channel has its own
+    display stretch, so colors are not calibrated colors or source SED data.
+    """
+    import numpy as np
+    from astropy.wcs import WCS
+    from reproject import reproject_interp
+
+    if len(channels) != 3 or {str(item.get("color")) for item in channels} != {"R", "G", "B"}:
+        raise BlinkError("A band composite requires exactly one R, G, and B input.")
+    if not (0.1 <= pixel_scale_arcsec <= 60):
+        raise BlinkError("Requested composite pixel scale is outside supported bounds.")
+
+    width = max(16, min(512, math.ceil(size_deg * 3600 / pixel_scale_arcsec)))
+    height = width
+    target_wcs = WCS(naxis=2)
+    target_wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    target_wcs.wcs.cunit = ["deg", "deg"]
+    target_wcs.wcs.crval = [ra, dec]
+    target_wcs.wcs.crpix = [(width + 1) / 2, (height + 1) / 2]
+    scale_deg = pixel_scale_arcsec / 3600
+    target_wcs.wcs.cd = [[-scale_deg, 0], [0, scale_deg]]
+
+    projected = {}
+    metadata = []
+    for item in channels:
+        color = str(item["color"])
+        source, source_wcs, wavelength_um, bandwidth_um = _read_plane(item["fits"], ra, dec)
+        values, footprint = reproject_interp(
+            (source, source_wcs), target_wcs, shape_out=(height, width),
+            order="bilinear", return_footprint=True,
+        )
+        valid = np.isfinite(values) & (footprint > 0)
+        if valid.sum() < max(16, width * height // 100):
+            raise BlinkError(f"Too little common footprint remains in the {color} channel.")
+        projected[color] = (values, valid)
+        metadata.append({
+            "color": color, "detector": item["detector"], "obsId": item["obsId"],
+            "date": item.get("date"), "wavelengthUm": wavelength_um,
+            "bandwidthUm": bandwidth_um,
+        })
+
+    common = projected["R"][1] & projected["G"][1] & projected["B"][1]
+    if common.sum() < max(16, width * height // 100):
+        raise BlinkError("Too little common sky area remains across the three bands.")
+    rgb = np.zeros((height, width, 3), dtype=np.uint8)
+    stretches = {}
+    for index, color in enumerate(("R", "G", "B")):
+        values = projected[color][0]
+        sample = values[common].astype(np.float64)
+        low, high = (float(value) for value in np.percentile(sample, [2, 99.5]))
+        stretches[color] = [low, high]
+        if high > low:
+            rgb[:, :, index] = np.clip((values - low) * (255.0 / (high - low)), 0, 255).astype(np.uint8)
+
+    rgba = np.empty((height, width, 4), dtype=np.uint8)
+    rgba[:, :, :3] = rgb
+    rgba[:, :, 3] = np.where(common, 255, 0).astype(np.uint8)
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)
+        rows.extend(rgba[y].tobytes())
+    header = struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n" + _png_chunk(b"IHDR", header)
+    png += _png_chunk(b"IDAT", zlib.compress(bytes(rows), level=6)) + _png_chunk(b"IEND", b"")
+    return {
+        "png": "data:image/png;base64," + base64.b64encode(png).decode("ascii"),
+        "width": width, "height": height, "pixelScaleArcsec": pixel_scale_arcsec,
+        "channels": metadata, "displayStretch": stretches,
+        "semantics": "false-color visual composite; independently stretched channels; zodiacal light is not subtracted; pixel flags are not masked or overlaid; not calibrated color, source photometry, or a spectrum",
+    }

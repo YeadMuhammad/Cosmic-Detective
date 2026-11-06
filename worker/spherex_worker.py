@@ -41,7 +41,7 @@ from lib.cache_keys import upload_path
 from lib.jobs import Jobs, RestError
 from lib.cutouts import NotFits, PayloadTooLarge
 from lib.photometry import PhotometryError, extract_source_photometry
-from lib.blink import BlinkError, register_blink_pair
+from lib.blink import BlinkError, compose_band_channels, register_blink_pair
 
 BUCKET = os.environ.get("SPHEREX_BUCKET", "spherex-products")
 POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "5"))
@@ -58,7 +58,7 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     if not isinstance(job.get("params", {}), dict):
         raise ValueError("job params must be an object")
     product = str(job.get("product") or "")
-    if product not in ("cutout-render", "photometry", "blink-pair"):
+    if product not in ("cutout-render", "photometry", "blink-pair", "band-composite"):
         raise ValueError(f"unsupported product: {product!r}")
     if product == "cutout-render":
         raise RuntimeError("cutout-render not implemented")
@@ -85,6 +85,13 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
             candidates = [{"cutoutUrl": reference_url, "obsId": params.get("referenceObsId"), "date": None}]
         if not isinstance(candidates, list) or len(candidates) > 8:
             raise RuntimeError("blink-pair job contains an invalid reference candidate list")
+    elif product == "band-composite":
+        body, verified = cutouts.download_verified_cutout(cutout_url)
+        params = job.get("params") or {}
+        raw_channels = params.get("channels")
+        channels = json.loads(raw_channels) if raw_channels else []
+        if not isinstance(channels, list) or len(channels) != 3:
+            raise RuntimeError("band-composite job must contain exactly three channels")
     elif product == "photometry":
         body, verified = cutouts.download_verified_cutout(cutout_url)
     else:
@@ -122,6 +129,23 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         if payload_object is None:
             details = " | ".join(failures[-3:])
             raise RuntimeError(f"No matching passband found in {len(candidates)} candidate observations. {details}")
+    elif product == "band-composite":
+        params = job.get("params") or {}
+        channel_blobs = []
+        for channel in channels:
+            if channel.get("cutoutUrl") == cutout_url:
+                channel_body, channel_verified = body, verified
+            else:
+                channel_body, channel_verified = cutouts.download_verified_cutout(str(channel.get("cutoutUrl") or ""))
+            channel_blobs.append({**channel, "fits": channel_body})
+        payload_object = compose_band_channels(
+            channel_blobs, float(job["ra"]), float(job["dec"]),
+            float(job["size_deg"]), float(params.get("pixelScaleArcsec", 6.2)),
+        )
+        payload_object["cutouts"] = {"channels": [
+            {"color": channel["color"], "url": channel["cutoutUrl"]}
+            for channel in channels
+        ]}
     elif product == "photometry":
         payload_object = extract_source_photometry(
             body,

@@ -112,6 +112,40 @@ type BlinkArtifact = {
   semantics: string
 }
 
+type ProcessingJob = Awaited<ReturnType<typeof requestProcessing>>
+
+async function awaitProcessingArtifact(initial: ProcessingJob, setMessage: (message: string) => void) {
+  let job = initial
+  const startedAt = Date.now()
+  const deadline = startedAt + 5 * 60 * 1000
+  let resultLookupDone = false
+  while (true) {
+    if (job.state === 'unavailable') throw new Error(job.reason)
+    if (job.state === 'available' && job.resultUrl) break
+    if (job.state === 'available' && resultLookupDone) throw new Error(job.reason || 'Completed job did not provide a result link.')
+    if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
+    if (Date.now() >= deadline) throw new Error('Stopped polling after 5 minutes. The processing job remains on the server.')
+    if (job.state === 'computing') {
+      setMessage(`${job.reason || 'Processing on the SPHEREx worker…'} (${Math.floor((Date.now() - startedAt) / 1000)}s elapsed)`)
+      await new Promise((resolve) => window.setTimeout(resolve, 5000))
+    } else if (job.state === 'available') resultLookupDone = true
+    let response: Response
+    try {
+      response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`, { signal: AbortSignal.timeout(20000) })
+    } catch {
+      throw new Error('The worker status check timed out or could not reach Netlify.')
+    }
+    if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
+    const nextJob = await response.json().catch(() => null) as ProcessingJob | null
+    if (!nextJob || !['available', 'computing', 'unavailable'].includes(nextJob.state)) throw new Error('The processing function returned an invalid job status.')
+    job = nextJob
+  }
+  if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Processing did not produce an artifact.')
+  const resultResponse = await fetch(job.resultUrl)
+  if (!resultResponse.ok) throw new Error(`Processed product download failed (${resultResponse.status}).`)
+  return await resultResponse.json() as Record<string, unknown>
+}
+
 function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean }) {
   const [firstId, setFirstId] = useState('')
   const [secondId, setSecondId] = useState('')
@@ -157,44 +191,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
         },
       })
       if (initial.state === 'unavailable') throw new Error(initial.reason)
-      let job = initial
-      const pollingStartedAt = Date.now()
-      const pollingDeadline = pollingStartedAt + 5 * 60 * 1000
-      let resultLinkLookupDone = false
-      while (true) {
-        if (job.state === 'unavailable') throw new Error(job.reason)
-        if (job.state === 'available' && job.resultUrl) break
-        if (job.state === 'available' && resultLinkLookupDone) {
-          throw new Error(job.reason || 'The completed Blink job did not provide a result link.')
-        }
-        if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
-        if (Date.now() >= pollingDeadline) {
-          throw new Error(`Stopped polling after 5 minutes. ${job.reason || 'The job is still processing.'} Check that the SPHEREx worker is running; the queued job remains on the server.`)
-        }
-        if (job.state === 'computing') {
-          const elapsedSeconds = Math.floor((Date.now() - pollingStartedAt) / 1000)
-          setMessage(`${job.reason || 'Registering matched images on the worker…'} (${elapsedSeconds}s elapsed)`)
-          await new Promise((resolve) => window.setTimeout(resolve, 5000))
-        } else if (job.state === 'available') {
-          resultLinkLookupDone = true
-        }
-        let response: Response
-        try {
-          response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`, { signal: AbortSignal.timeout(20000) })
-        } catch {
-          throw new Error('The worker status check timed out or could not reach Netlify. Check the function connection and try again.')
-        }
-        if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
-        const nextJob = await response.json().catch(() => null) as typeof job | null
-        if (!nextJob || !['available', 'computing', 'unavailable'].includes(nextJob.state)) {
-          throw new Error('The processing function returned an invalid job status.')
-        }
-        job = nextJob
-      }
-      if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Registration did not produce an image pair.')
-      const resultResponse = await fetch(job.resultUrl)
-      if (!resultResponse.ok) throw new Error(`Registered product download failed (${resultResponse.status}).`)
-      const result = await resultResponse.json() as BlinkArtifact
+      const result = await awaitProcessingArtifact(initial, setMessage) as unknown as BlinkArtifact
       if (!result.firstPng?.startsWith('data:image/png;base64,') || !result.secondPng?.startsWith('data:image/png;base64,')) throw new Error('Worker returned an invalid registered-image product.')
       const matched = frames.find((frame) => frame.id === result.matchedReference?.obsId)
       if (matched) setSecondId(frameKey(matched))
@@ -215,6 +212,93 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
     {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
       <p className="research-note">Matched from {artifact.candidateAttempts ?? 1} candidate{artifact.candidateAttempts === 1 ? '' : 's'}. Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
+  </section>
+}
+
+type ChannelColor = 'R' | 'G' | 'B'
+type CompositeArtifact = {
+  png: string; width: number; height: number; pixelScaleArcsec: number
+  channels: { color: ChannelColor; detector: string; obsId: string; date: string; wavelengthUm: number; bandwidthUm: number }[]
+  displayStretch: Record<ChannelColor, [number, number]>
+  semantics: string
+}
+type CompositeReport = Omit<CompositeArtifact, 'png'> & { query: { raDeg: number; decDeg: number; sizeDeg: number } }
+
+function BandMixer({ frames, ra, dec, sizeDeg, cached, onArtifact }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean; onArtifact: (artifact: CompositeReport | null) => void }) {
+  const [cohort, setCohort] = useState('')
+  const [selection, setSelection] = useState<Record<ChannelColor, string>>({ R: '', G: '', B: '' })
+  const [artifact, setArtifact] = useState<CompositeArtifact | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('Choose one exposure for each display channel.')
+  const cohorts = [...new Set(frames.filter((frame) => frame.collection && frame.processingRelease)
+    .map((frame) => `${frame.collection}|${frame.processingRelease}`))]
+  useEffect(() => {
+    if (!cohorts.includes(cohort)) setCohort(cohorts[0] ?? '')
+  }, [cohort, cohorts.join('|')])
+  const choices = frames.filter((frame) => `${frame.collection}|${frame.processingRelease}` === cohort)
+  const preferred: Record<ChannelColor, number> = { R: 6, G: 4, B: 2 }
+  const chosen = (color: ChannelColor) => choices.find((frame) => frameKey(frame) === selection[color])
+    ?? choices.filter((frame) => frame.band.startsWith('D')).sort((a, b) => {
+      const da = Math.abs(Number(a.band.slice(1)) - preferred[color])
+      const db = Math.abs(Number(b.band.slice(1)) - preferred[color])
+      return da - db || a.time - b.time
+    })[0]
+  useEffect(() => {
+    setSelection((current) => {
+      const next = { ...current }
+      for (const color of ['R', 'G', 'B'] as const) {
+        if (!choices.some((frame) => frameKey(frame) === current[color])) next[color] = chosen(color) ? frameKey(chosen(color)!) : ''
+      }
+      return next
+    })
+  }, [cohort, frames])
+
+  const run = async () => {
+    if (cached) return
+    const rgb = (['R', 'G', 'B'] as const).map((color) => ({ color, frame: chosen(color) }))
+    if (rgb.some(({ frame }) => !frame)) return
+    const primary = rgb[0].frame!
+    setBusy(true); setArtifact(null); onArtifact(null)
+    try {
+      setMessage('Reprojecting selected detector channels on the worker…')
+      const initial = await requestProcessing('band-composite', {
+        collection: primary.collection, obsId: primary.id, detector: primary.band,
+        release: primary.processingRelease, ra, dec, sizeDeg, cutoutUrl: primary.cutout,
+        params: {
+          pixelScaleArcsec: '6.2',
+          channels: JSON.stringify(rgb.map(({ color, frame }) => ({
+            color, cutoutUrl: frame!.cutout, obsId: frame!.id, detector: frame!.band,
+            collection: frame!.collection, release: frame!.processingRelease, date: frame!.date,
+          }))),
+        },
+      })
+      if (initial.state === 'unavailable') throw new Error(initial.reason)
+      const result = await awaitProcessingArtifact(initial, setMessage) as unknown as CompositeArtifact
+      if (!result.png?.startsWith('data:image/png;base64,') || result.channels?.length !== 3) throw new Error('Worker returned an invalid band composite.')
+      const { png: _png, ...report } = result
+      onArtifact({ ...report, query: { raDeg: ra, decDeg: dec, sizeDeg } })
+      setArtifact(result)
+      setMessage('Composite ready. This independently stretched false-color view is for visual exploration only.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Band composite failed.')
+    } finally { setBusy(false) }
+  }
+
+  return <section className="research-results" aria-label="SPHEREx multiband channel mixer" aria-busy={busy}>
+    <div className="panel-title mono">MULTIBAND COMPOSITOR · FALSE COLOR</div>
+    <p>Assign real detector images to red, green, and blue. The worker reprojects them to one sky grid and stretches each band independently. SPHEREx IMAGE still contains modeled zodiacal light, and pixel flags are not masked or overlaid. Colors are not calibrated color, a source spectrum, or evidence of variability; selected exposures may have different observation times.</p>
+    {cached && <p>Cached snapshots do not include a validated set of three live channel inputs. Search the live archive to build a multiband composite.</p>}
+    <div className="research-blink-controls">
+      <label>Collection and processing release<select value={cohort} onChange={(event) => { setCohort(event.target.value); setArtifact(null); onArtifact(null) }}>{cohorts.map((value) => <option key={value} value={value}>{value.replace('|', ' · ')}</option>)}</select></label>
+      {(['R', 'G', 'B'] as const).map((color) => <label key={color}>{color} channel<select value={chosen(color) ? frameKey(chosen(color)!) : ''} onChange={(event) => { setSelection((current) => ({ ...current, [color]: event.target.value })); setArtifact(null); onArtifact(null) }}>
+        {choices.filter((frame) => frame.band === chosen(color)?.band || !(['R', 'G', 'B'] as const).some((other) => other !== color && chosen(other)?.band === frame.band)).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}
+      </select></label>)}
+      <button type="button" onClick={() => void run()} disabled={busy || cached || !chosen('R') || !chosen('G') || !chosen('B') || new Set((['R', 'G', 'B'] as const).map((color) => chosen(color)?.band)).size !== 3}>{busy ? 'Processing…' : 'Build false-color composite'}</button>
+    </div>
+    <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
+    {artifact && <><div className="research-image research-blink-image"><img src={artifact.png} alt="False-color composite of three reprojected SPHEREx detector images" /></div>
+      <p className="research-note">{artifact.channels.map((channel) => `${channel.color}: ${channel.detector}, ${channel.date}, ${channel.wavelengthUm.toFixed(4)} µm ± ${channel.bandwidthUm.toFixed(4)} µm`).join(' · ')} · {artifact.width}×{artifact.height} at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p>
+      <a className="research-link" href={artifact.png} download={`spherex-${ra.toFixed(5)}-${dec.toFixed(5)}-false-color.png`}>Download composite PNG</a></>}
   </section>
 }
 
@@ -279,7 +363,8 @@ export function ResearchPortal() {
   const [bands, setBands] = useState<string[]>([...BANDS]), [frames, setFrames] = useState<Frame[]>([])
   const [activeKey, setActiveKey] = useState('')
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
-  const [view, setView] = useState<'bands' | 'raw' | 'blink'>('bands')
+  const [view, setView] = useState<'bands' | 'raw' | 'blink' | 'composite'>('bands')
+  const [compositeReport, setCompositeReport] = useState<CompositeReport | null>(null)
   const [sourceMode, setSourceMode] = useState<'live' | 'cached'>(initial.source)
   const [cachedTarget, setCachedTarget] = useState('')
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
@@ -303,6 +388,9 @@ export function ResearchPortal() {
   }, [])
   const selectedRegistry = registry?.targets[registryTarget] ?? null
   const selectedFrames = useMemo(() => frames.filter((f) => bands.includes(f.band)), [frames, bands])
+  const compositeAvailable = selectedFrames.some((frame) => new Set(selectedFrames
+    .filter((other) => other.collection === frame.collection && other.processingRelease === frame.processingRelease)
+    .map((other) => other.band)).size >= 3)
   const blinkFrames = useMemo(() => selectedFrames.filter((frame) => frame.collection && frame.processingRelease
     && selectedFrames.some((other) => frameKey(other) !== frameKey(frame) && other.band === frame.band
       && other.collection === frame.collection && other.processingRelease === frame.processingRelease)), [selectedFrames])
@@ -365,7 +453,7 @@ export function ResearchPortal() {
   const timeMax = timePoints.length ? Math.max(...timePoints.map((point) => point.time)) : 1
   const explorerUrl = new URL('https://irsa.ipac.caltech.edu/applications/spherex/')
   explorerUrl.searchParams.set('api', 'spectral-images'); explorerUrl.searchParams.set('ra', ra); explorerUrl.searchParams.set('dec', dec); explorerUrl.searchParams.set('sr', `${Number(fov) / 120}d`)
-  const toggleBand = (band: string) => setBands((xs) => xs.includes(band) ? xs.filter((x) => x !== band) : [...xs, band])
+  const toggleBand = (band: string) => { setCompositeReport(null); setBands((xs) => xs.includes(band) ? xs.filter((x) => x !== band) : [...xs, band]) }
   const pickRegistryTarget = (id: string) => {
     const target = registry?.targets[id]
     setRegistryTarget(id)
@@ -389,6 +477,7 @@ export function ResearchPortal() {
     return () => window.clearInterval(id)
   }, [playing, selectedFrames, activeIndex, currentKey, readyFrames])
   const loadField = (f: FieldData) => {
+    setCompositeReport(null)
     setRa(String(f.ra)); setDec(String(f.dec)); setFov(String(f.fov)); setBands(f.bands.length ? f.bands : [...BANDS])
     const fs = f.frames as Frame[]
     setFrames(fs); setActiveKey(fs[0] ? frameKey(fs[0]) : ''); setError(false)
@@ -396,7 +485,7 @@ export function ResearchPortal() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const search = async (e: React.FormEvent) => {
-    e.preventDefault(); setError(false); setFrames([]); setIrsaResult(null); setAnalysisTool(null)
+    e.preventDefault(); setError(false); setFrames([]); setIrsaResult(null); setAnalysisTool(null); setCompositeReport(null)
     const r = Number(ra), d = Number(dec), size = Number(fov)
     if (!Number.isFinite(r) || r < 0 || r > 360 || !Number.isFinite(d) || d < -90 || d > 90 || !Number.isFinite(size) || size <= 0 || size > 30) {
       setError(true); setStatus('Enter RA 0–360°, Dec −90–90°, and a field size above 0 and at most 30 arcmin.'); return
@@ -502,6 +591,30 @@ export function ResearchPortal() {
     const capability = analysisCapabilities[id]
     return <span className={`capability-state ${capability.state}`}>{capability.state}</span>
   }
+  const downloadReport = () => {
+    const report = {
+      format: 'Cosmic Detective SPHEREx research report',
+      generatedAt: new Date().toISOString(),
+      query: { raDeg: Number(ra), decDeg: Number(dec), fieldSizeArcmin: Number(fov), source: provenance },
+      observations: selectedFrames.map((frame) => ({
+        observationId: frame.obs, detector: frame.band, observationTime: Number.isFinite(frame.time) ? new Date(frame.time).toISOString() : null,
+        collection: frame.collection, processingRelease: frame.processingRelease, imageUrl: frame.url, cutoutUrl: frame.cutout,
+      })),
+      processedVisualizations: { falseColorComposite: compositeReport },
+      measuredSourceData: activeIRSAResult ? {
+        source: activeIRSAResult.source, rows: activeIRSAResult.rows, rejectedByFlags: activeIRSAResult.rejected,
+        target: activeIRSAResult.target,
+        measurements: activeIRSAResult.observations.map((observation) => observation.measurement ?? null).filter(Boolean),
+      } : null,
+      toolReadiness: Object.fromEntries(Object.entries(analysisCapabilities).map(([name, value]) => [name, value])),
+      interpretation: 'Archive images and visual composites are not source photometry. Imported measurements retain their IRSA values, flags, and provenance; tool readiness indicates current input gates only.',
+    }
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url; link.download = `spherex-report-${Number(ra).toFixed(5)}-${Number(dec).toFixed(5)}.json`
+    link.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
   return <div className="screen case-screen research-screen" style={{ ['--accent' as any]: '#ffd84a' }}>
     <div className="case-bar"><div className="case-id"><span className="mono kicker">CH 5 · LIVE ARCHIVE</span><h1 className="display">Open Sky Research Portal</h1></div><div className="case-actions"><Btn variant="ghost" onClick={() => navigate('/map')}>Case board</Btn></div></div>
     <p className="lede">Browse rendered SPHEREx QR3 and QR2 spectral images by ICRS position. This public view shows archive coverage; it does not claim that different wavelengths are a valid science comparison.</p>
@@ -547,10 +660,11 @@ export function ResearchPortal() {
       <button type="button" className={view === 'blink' ? 'on' : ''} disabled={blinkFrames.length < 2} title={blinkFrames.length < 2 ? 'Requires two frames from the same detector, collection, and processing release.' : 'Register two matching frames on the SPHEREx worker.'} onClick={() => setView('blink')}>Blink Comparator</button>
       <button type="button" disabled title="Requires registered multi-epoch images." >Difference</button>
       <button type="button" className={view === 'bands' ? 'on' : ''} onClick={() => setView('bands')}>Bands</button>
+      <button type="button" className={view === 'composite' ? 'on' : ''} disabled={!compositeAvailable} title="Requires three detector channels in one collection and processing release." onClick={() => setView('composite')}>Channel mixer</button>
       <button type="button" disabled={analysisCapabilities.lightcurve.state !== 'available'} title={analysisCapabilities.lightcurve.reason} onClick={() => setAnalysisTool('lightcurve')}>Light Curve</button>
       <button type="button" className={view === 'raw' ? 'on' : ''} onClick={() => setView('raw')}>Raw series</button>
       <button type="button" disabled={analysisCapabilities.phaseFold.state !== 'available'} title={analysisCapabilities.phaseFold.reason} onClick={() => setAnalysisTool('phaseFold')}>Phase fold</button>
-    </div>
+    </div><Btn variant="ghost" disabled={!selectedFrames.length} onClick={downloadReport}>Download report</Btn>
       <div className="capability-grid" aria-label="Metadata-derived analysis capabilities">
         {([
           ['blink', 'Blink Comparator', 'Blink'],
@@ -578,7 +692,8 @@ export function ResearchPortal() {
       </>}
     </section>}
     {view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} />}
-    {view !== 'blink' && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
+    {view === 'composite' && selectedFrames.length > 0 && <BandMixer frames={selectedFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} onArtifact={setCompositeReport} />}
+    {(view === 'bands' || view === 'raw') && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}
       {view === 'raw' && <div className="timeline-panel"><p>Each point is an archive image observation, not source brightness. Select a point or its row to inspect the file.</p>{timePoints.length ? <svg className="research-timeline" viewBox={`0 0 760 ${Math.max(100, BANDS.length * 28 + 30)}`} role="img" aria-label="Observation dates grouped by detector band">
         {BANDS.filter((b) => bands.includes(b)).map((band) => { const lane = BANDS.indexOf(band); return <g key={band}><text x="8" y={32 + lane * 28}>{band}</text><line x1="72" y1={28 + lane * 28} x2="744" y2={28 + lane * 28} /><title>{band} observation dates</title></g> })}

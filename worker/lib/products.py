@@ -59,6 +59,13 @@ def staged_products(product: str, job: Mapping[str, Any]) -> list:
             ("register", "reproject IMAGE planes to one target-centered TAN sky grid"),
             ("render", "render both epochs using one shared intensity stretch"),
         ]
+    if product == "band-composite":
+        return [
+            ("verify-cutouts", "bounded FITS downloads for three selected detector channels"),
+            ("read-planes", "read IMAGE, celestial WCS, and target-pixel wavelength metadata"),
+            ("reproject", "map channels independently to one target-centered TAN sky grid"),
+            ("render", "independent linear channel stretches for a false-color visualization"),
+        ]
     raise KeyError(f"unknown product: {product!r}")
 
 
@@ -69,6 +76,8 @@ def product_dependencies(product: str) -> list:
     elif product == "photometry":
         names += ["astropy", "numpy"]
     elif product == "blink-pair":
+        names += ["astropy", "numpy", "reproject"]
+    elif product == "band-composite":
         names += ["astropy", "numpy", "reproject"]
     return sorted(set(names))
 
