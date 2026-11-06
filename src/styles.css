@@ -994,7 +994,20 @@ kbd {
 }
 
 /* Live SPHEREx research portal */
-.research-screen { max-width: 1320px; }
+.research-screen { max-width: 1600px; }
+.research-case-grid { margin-top: 16px; }
+.research-observation-pane { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: hidden; }
+.research-observation-list { display: grid; gap: 7px; max-height: calc(100vh - 110px); overflow-y: auto; padding-right: 3px; }
+.research-observation-tile { display: grid; grid-template-columns: minmax(0, 1fr) 34px; align-items: stretch; border: 1px solid var(--line); background: var(--panel-2); animation: rise .22s ease both; }
+.research-observation-tile.sel { border-color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
+.research-observation-tile > button { display: grid; gap: 3px; min-width: 0; border: 0; padding: 9px 10px; color: var(--text); background: transparent; text-align: left; cursor: pointer; }
+.research-observation-tile > button strong { color: var(--accent); font: 700 12px 'IBM Plex Mono', monospace; }
+.research-observation-tile > button span,.research-observation-tile > button small { overflow: hidden; color: var(--muted); font: 10px 'IBM Plex Mono', monospace; text-overflow: ellipsis; white-space: nowrap; }
+.research-observation-tile .fits-download { display: grid; place-items: center; align-self: center; width: 34px; height: 34px; color: var(--accent); }
+.research-inspector { min-width: 0; }
+.research-case-side { min-width: 0; }
+.research-side-card { min-width: 0; padding: 14px; border: 1px solid var(--line); background: var(--panel); }
+.research-side-card .capability-grid { grid-template-columns: 1fr; }
 .research-form { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 14px; padding: 18px; background: var(--panel); border: 1px solid var(--line); }
 .research-form > label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font: 11px 'IBM Plex Mono', monospace; letter-spacing: .04em; }
 .research-form input:not([type=checkbox]) { min-width: 0; width: 100%; padding: 10px; border: 1px solid var(--line-strong); background: var(--panel-solid); color: var(--text); font: 14px 'IBM Plex Mono', monospace; }
@@ -1083,6 +1096,7 @@ kbd {
 .research-footnote { margin-top: 20px; }
 @media (max-width: 800px) { .research-form { grid-template-columns: repeat(2, minmax(130px, 1fr)); } .coverage-strip { grid-template-columns: repeat(3, 1fr); } .research-workspace { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 600px) { .research-form { grid-template-columns: minmax(0, 1fr); padding: 12px; } .research-form > label, .research-form .band-checks, .research-form > button { grid-column: 1; min-width: 0; } .seed-row input { flex: 1; } }
+@media (max-width: 860px) { .research-observation-pane { position: static; max-height: none; } .research-observation-list { max-height: 40vh; } }
 .member-name {
   font-size: 14px;
   letter-spacing: 0.12em;

@@ -765,26 +765,24 @@ export function ResearchPortal() {
       <p className="research-note">This is a timestamped archive-coverage snapshot. Tool readiness below is calculated from the current query and its validated inputs.</p>
     </section>}
     <div className={`research-status ${error ? 'error' : ''}`} role="status">{status}</div>
+    {selectedFrames.length > 0 && <div className="case-grid research-case-grid">
+      <aside className="tile-grid research-observation-pane" aria-label="SPHEREx observation batch">
+        <div className="panel-title mono">OBSERVATION BATCH · {selectedFrames.length}</div>
+        <div className="research-observation-list">{selectedFrames.map((frame, index) => <div className={`research-observation-tile ${activeFrame && frameKey(frame) === frameKey(activeFrame) ? 'sel' : ''}`} key={frameKey(frame)} style={{ animationDelay: `${Math.min(index, 12) * 25}ms` }}>
+          <button type="button" onClick={() => setActiveKey(frameKey(frame))} aria-pressed={!!activeFrame && frameKey(frame) === frameKey(activeFrame)}><strong>{frame.band}</strong><span>{frame.date}</span><small>{frame.obs}</small><small>{frame.release.toUpperCase().replace('SPHEREX_', '')}</small></button>
+          <a className="fits-download" href={cutoutProxyUrl(frame)} download={cutoutFilename(frame)} title={`Download ${frame.band} FITS cutout`} aria-label={`Download ${frame.band} FITS cutout for ${frame.obs}`}><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M3 14v3h14v-3" /></svg></a>
+        </div>)}</div>
+      </aside>
+      <section className="inspect research-inspector" aria-label="SPHEREx investigation tools">
     <div className="research-tools"><div className="research-tabs">
-      <button type="button" className={view === 'blink' ? 'on' : ''} disabled={blinkFrames.length < 2} title={blinkFrames.length < 2 ? 'Requires two frames from the same detector, collection, and processing release.' : 'Register two matching frames on the SPHEREx worker.'} onClick={() => setView('blink')}>Blink Comparator</button>
+      <button type="button" className={!analysisTool && view === 'blink' ? 'on' : ''} disabled={blinkFrames.length < 2} title={blinkFrames.length < 2 ? 'Requires two frames from the same detector, collection, and processing release.' : 'Register two matching frames on the SPHEREx worker.'} onClick={() => { setAnalysisTool(null); setView('blink') }}>Blink Comparator</button>
       <button type="button" disabled title="Requires registered multi-epoch images." >Difference</button>
-      <button type="button" className={view === 'bands' ? 'on' : ''} onClick={() => setView('bands')}>Bands</button>
-      <button type="button" className={view === 'composite' ? 'on' : ''} disabled={!compositeAvailable} title="Requires three detector channels in one collection and processing release." onClick={() => setView('composite')}>Channel mixer</button>
-      <button type="button" disabled={analysisCapabilities.lightcurve.state !== 'available'} title={analysisCapabilities.lightcurve.reason} onClick={() => setAnalysisTool('lightcurve')}>Light Curve</button>
-      <button type="button" className={view === 'raw' ? 'on' : ''} onClick={() => setView('raw')}>Raw series</button>
-      <button type="button" disabled={analysisCapabilities.phaseFold.state !== 'available'} title={analysisCapabilities.phaseFold.reason} onClick={() => setAnalysisTool('phaseFold')}>Phase fold</button>
-    </div><Btn variant="ghost" disabled={!selectedFrames.length} onClick={downloadReport}>Download report</Btn>
-      <div className="capability-grid" aria-label="Metadata-derived analysis capabilities">
-        {([
-          ['blink', 'Blink Comparator', 'Blink'],
-          ['difference', 'Difference', 'Difference'],
-          ['lightcurve', 'Light Curve', 'Light Curve'],
-          ['phaseFold', 'Phase fold', 'Phase fold'],
-          ['spectrum', 'Spectrum', 'Spectrum'],
-        ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{id === 'blink' && analysisCapabilities.blink.state === 'available' ? <button type="button" onClick={() => setView('blink')}>{button}</button> : analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => setAnalysisTool(id as 'lightcurve' | 'phaseFold')}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}
-      </div>
-      <span className="tool-unavailable">Blink uses matching live frames registered by the worker. Difference remains disabled pending validated PSF, background, quality-mask, and noise handling. Light Curve, Phase fold, and Spectrum require measured source data; archive images alone do not provide those measurements.</span>
-    </div>
+      <button type="button" className={!analysisTool && view === 'bands' ? 'on' : ''} onClick={() => { setAnalysisTool(null); setView('bands') }}>Bands</button>
+      <button type="button" className={!analysisTool && view === 'composite' ? 'on' : ''} disabled={!compositeAvailable} title="Requires three detector channels in one collection and processing release." onClick={() => { setAnalysisTool(null); setView('composite') }}>Channel mixer</button>
+      <button type="button" className={analysisTool === 'lightcurve' ? 'on' : ''} disabled={analysisCapabilities.lightcurve.state !== 'available'} title={analysisCapabilities.lightcurve.reason} onClick={() => { setView('bands'); setAnalysisTool('lightcurve') }}>Light Curve</button>
+      <button type="button" className={!analysisTool && view === 'raw' ? 'on' : ''} onClick={() => { setAnalysisTool(null); setView('raw') }}>Raw series</button>
+      <button type="button" className={analysisTool === 'phaseFold' ? 'on' : ''} disabled={analysisCapabilities.phaseFold.state !== 'available'} title={analysisCapabilities.phaseFold.reason} onClick={() => { setView('bands'); setAnalysisTool('phaseFold') }}>Phase fold</button>
+    </div></div>
     {analysisTool && activeIRSAResult && analysisCapabilities[analysisTool].state === 'available' && <section className="research-results" aria-label={`${analysisTool} analysis`}>
       <div className="panel-title mono">VALIDATED IRSA DATA · {analysisTool.toUpperCase()}</div>
       {analysisTool === 'lightcurve' && <>
@@ -800,23 +798,36 @@ export function ResearchPortal() {
         {periodResult?.available ? <><p>Trial-period fold · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability; it also omits shared calibration covariance.</p><MeasurementPlot label="SPHEREx trial-period phase fold with weighted flux uncertainties" points={periodResult.value.bins.map((bin) => ({ x: bin.phase, y: bin.flux, error: bin.uncertainty }))} xLabel="Phase (cycle)" yLabel="Flux (µJy)" /><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
       </>}
     </section>}
-    {view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} reports={anomalyReports} onReport={saveAnomalyReports} />}
-    {view === 'composite' && selectedFrames.length > 0 && <BandMixer frames={selectedFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} onArtifact={setCompositeReport} />}
-    {(view === 'bands' || view === 'raw') && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
+    {!analysisTool && view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} reports={anomalyReports} onReport={saveAnomalyReports} />}
+    {!analysisTool && view === 'composite' && selectedFrames.length > 0 && <BandMixer frames={selectedFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} onArtifact={setCompositeReport} />}
+    {!analysisTool && (view === 'bands' || view === 'raw') && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}
       {view === 'raw' && <div className="timeline-panel"><p>Each point is an archive image observation, not source brightness. Select a point or its row to inspect the file.</p>{timePoints.length ? <svg className="research-timeline" viewBox={`0 0 760 ${Math.max(100, BANDS.length * 28 + 30)}`} role="img" aria-label="Observation dates grouped by detector band">
         {BANDS.filter((b) => bands.includes(b)).map((band) => { const lane = BANDS.indexOf(band); return <g key={band}><text x="8" y={32 + lane * 28}>{band}</text><line x1="72" y1={28 + lane * 28} x2="744" y2={28 + lane * 28} /><title>{band} observation dates</title></g> })}
         {timePoints.map(({ frame, time }) => { const lane = BANDS.indexOf(frame.band as typeof BANDS[number]); const x = 72 + (timeMax === timeMin ? 0.5 : (time - timeMin) / (timeMax - timeMin)) * 672; return <circle key={frameKey(frame)} cx={x} cy={28 + lane * 28} r={frameKey(frame) === frameKey(activeFrame!) ? 6 : 4} className={frameKey(frame) === frameKey(activeFrame!) ? 'selected' : ''} onClick={() => setActiveKey(frameKey(frame))} /> })}
         <text x="72" y={Math.max(95, BANDS.length * 28 + 20)}>{new Date(timeMin).toISOString().slice(0, 10)}</text><text x="650" y={Math.max(95, BANDS.length * 28 + 20)}>{new Date(timeMax).toISOString().slice(0, 10)}</text>
       </svg> : <p>No usable observation dates were returned for this result set.</p>}</div>}
-      <div className="research-workspace">
-        <div className="research-table-wrap"><table className="research-table"><thead><tr><th>Observation date</th><th>Detector</th><th>Release</th><th>Observation ID</th><th>FITS cutout</th></tr></thead><tbody>{selectedFrames.map((f) => <tr key={frameKey(f)} className={activeFrame && frameKey(f) === frameKey(activeFrame) ? 'active' : ''}>
-          <td>{f.date}</td><td>{f.band}<small>{WAVE[f.band]}</small></td><td>{f.release.toUpperCase().replace('SPHEREX_', '')}</td><td><button className="research-row-select" onClick={() => setActiveKey(frameKey(f))} aria-pressed={!!activeFrame && frameKey(f) === frameKey(activeFrame)}>{f.obs}</button></td><td><a className="fits-download" href={cutoutProxyUrl(f)} download={cutoutFilename(f)} title={`Download ${f.band} FITS cutout`} aria-label={`Download ${f.band} FITS cutout for ${f.obs}`}><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M3 14v3h14v-3" /></svg></a></td>
-        </tr>)}</tbody></table></div>
-        {activeFrame && <aside className="selected-observation"><div className="panel-title mono">SELECTED OBSERVATION</div><h3>{activeFrame.band} · {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3><p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p><BrowseImage frame={activeFrame} onStart={() => setReadyFrames((previous) => { const next = new Set(previous); next.delete(currentKey); return next })} onReady={() => setReadyFrames((previous) => new Set(previous).add(currentKey))} /><div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}{playing && !readyFrames.has(currentKey) ? ' · loading' : ''}</span></div><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS ↗</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF ↗</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer ↗</a></aside>}
-      </div>
-      <p className="research-note">The canvas uses a linear display stretch between the 2nd and 99.5th finite-pixel percentiles; this affects brightness only, not the FITS samples. Download a FITS cutout from each observation row to inspect or process its image, flags, variance, zodiacal model, PSF, and wavelength metadata. Detector wavelength varies across the focal plane. The SPHEREx Explorer provides an interactive image view.</p>
+      {activeFrame && <section className="research-results selected-observation">
+        <div className="panel-title mono">SELECTED OBSERVATION</div>
+        <h3>{activeFrame.band} / {activeFrame.release.toUpperCase().replace('SPHEREX_', '')}</h3>
+        <p>{activeFrame.date}</p><p className="mono">{activeFrame.obs}</p>
+        <BrowseImage frame={activeFrame} onStart={() => setReadyFrames((previous) => { const next = new Set(previous); next.delete(currentKey); return next })} onReady={() => setReadyFrames((previous) => new Set(previous).add(currentKey))} />
+        <div className="research-playback"><button type="button" onClick={() => setPlaying((value) => !value)}>{playing ? 'Pause playback' : 'Play series'}</button><span>{activeIndex + 1} / {selectedFrames.length}{playing && !readyFrames.has(currentKey) ? ' - loading' : ''}</span></div>
+        <a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open cutout FITS</a><a href={activeFrame.url} target="_blank" rel="noreferrer">Open full MEF</a><a href={explorerUrl.toString()} target="_blank" rel="noreferrer">View this field in SPHEREx Explorer</a>
+      </section>}
+      <p className="research-note">The canvas uses a linear display stretch between the 2nd and 99.5th finite-pixel percentiles; this affects brightness only, not the FITS samples. Detector wavelength varies across the focal plane.</p>
     </section>}
+      </section>
+      <aside className="side research-case-side" aria-label="Tool readiness and case context">
+        <section className="research-side-card"><div className="panel-title mono">INVESTIGATION TOOLS</div><Btn variant="ghost" disabled={!selectedFrames.length} onClick={downloadReport}>Download report</Btn>
+          <div className="capability-grid" aria-label="Metadata-derived analysis capabilities">{([
+            ['blink', 'Blink Comparator', 'Blink'], ['difference', 'Difference', 'Difference'], ['lightcurve', 'Light Curve', 'Light Curve'], ['phaseFold', 'Phase fold', 'Phase fold'], ['spectrum', 'Spectrum', 'Spectrum'],
+          ] as const).map(([id, label, button]) => <div className="capability-card" key={id}><strong>{label}</strong>{capabilityLabel(id)}<p>{analysisCapabilities[id].reason}</p>{id === 'blink' && analysisCapabilities.blink.state === 'available' ? <button type="button" onClick={() => { setAnalysisTool(null); setView('blink') }}>{button}</button> : analysisCapabilities[id].state === 'available' && ['lightcurve', 'phaseFold'].includes(id) ? <button type="button" onClick={() => { setView('bands'); setAnalysisTool(id as 'lightcurve' | 'phaseFold') }}>{button}</button> : <button type="button" disabled title={analysisCapabilities[id].reason}>{button}</button>}</div>)}</div>
+          <p className="tool-unavailable">Difference remains disabled pending validated PSF, background, quality-mask, and noise handling. Light Curve, Phase fold, and Spectrum require measured source data.</p>
+        </section>
+        {activeFrame && <section className="research-side-card"><div className="panel-title mono">FIELD CONTEXT</div><p>RA {Number(ra).toFixed(5)} / Dec {Number(dec).toFixed(5)}</p><p>{selectedFrames.length} selected observation files - {provenance === 'cached-live' ? 'cached snapshot' : 'live archive'}</p><p>{anomalyReports.length} local candidate report{anomalyReports.length === 1 ? '' : 's'}</p><p className="mono">{activeFrame.band} / {activeFrame.collection.toUpperCase()} / {activeFrame.processingRelease}</p><p>{activeFrame.date}</p><a href={activeFrame.cutout} target="_blank" rel="noreferrer">Open selected FITS cutout</a></section>}
+      </aside>
+    </div>}
     <SquadPanel field={{ ra: Number(ra), dec: Number(dec), fov: Number(fov), bands, frames: selectedFrames }} onOpenJob={loadField} />
     <p className="research-footnote">This screen searches IRSA’s public QR3 and QR2 wide-survey collections. Registered blink is visual-only and requires the processing worker; a difference image and time-coherent spectrum remain disabled until their science validation paths are complete. An archive frame list alone is not a calibrated light curve.</p>
   </div>
