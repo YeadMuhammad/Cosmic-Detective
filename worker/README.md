@@ -50,11 +50,16 @@ subtracted twice when extraction is implemented.
 
 ## Run
 
-From the repository root, install dependencies and start the worker in a
-separate terminal from `netlify dev`:
+From the repository root, install Python dependencies once, then run Netlify
+Dev and the worker together:
 
     python -m pip install -r worker/requirements.txt
-    python worker/spherex_worker.py
+    npm run dev:all
+
+`dev:all` launches Netlify CLI through `npx` and starts the Python worker. The
+first launch downloads Netlify CLI if it is not already present in the npm
+cache. Configure `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in the root
+`.env` file before starting; the worker loads that file automatically.
 
 For local runs, the worker reads `SUPABASE_URL` and
 `SUPABASE_SERVICE_ROLE_KEY` from the ignored root `.env` file. It also accepts
