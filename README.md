@@ -154,7 +154,7 @@ The game runs as a guest with no setup. Progress is saved in your browser only.
 
 1. Create a Supabase project and apply the SQL in [`supabase/migrations/`](supabase/migrations/).
 2. In the project's Auth settings, turn **Confirm email** off. Accounts use a derived address and nothing is ever emailed.
-3. Create `.env.local` in the repository root:
+3. Copy [`.env.local.example`](.env.local.example) to `.env.local` in the repository root and replace the placeholders:
 
    ```dotenv
    VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -163,7 +163,7 @@ The game runs as a guest with no setup. Progress is saved in your browser only.
 
 4. Restart `npm run dev`. The title screen now shows **Log in** and **Create account**.
 
-The publishable (anon) key is public by design. Never put a secret or service role key in a `VITE_` variable and never commit any `.env` file.
+The publishable (anon) key is public by design. Never put a secret or service role key in a `VITE_` variable and never commit any real `.env` file. For the local SPHEREx worker and Netlify function, copy [`.env.example`](.env.example) to `.env` and set the server-side Supabase URL and service role key there.
 
 ### Run Supabase locally (optional)
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { Btn } from '../components/ui'
 import { navigate } from '../lib/util'
 import { SquadPanel } from '../components/SquadPanel'
@@ -15,6 +15,42 @@ import { requestProcessing } from '../lib/processing'
 const BANDS = ['D1', 'D2', 'D3', 'D4', 'D5', 'D6'] as const
 const WAVE: Record<string, string> = { D1: '0.75–1.09 µm', D2: '1.10–1.62 µm', D3: '1.63–2.41 µm', D4: '2.42–3.82 µm', D5: '3.83–4.41 µm', D6: '4.42–5.00 µm' }
 type Frame = { id: string; band: string; date: string; time: number; url: string; cutout: string; obs: string; release: string; collection: string; processingRelease: string }
+type AnomalyReport = {
+  id: string
+  format: 'Cosmic Detective SPHEREx anomaly report'
+  status: 'candidate-unverified'
+  reportedAt: string
+  classification: string
+  notes: string
+  target: { raDeg: number; decDeg: number; fieldSizeDeg: number }
+  registeredBlink: {
+    first: Record<string, unknown>
+    second: Record<string, unknown>
+    marker: { xFraction: number; yFraction: number; pixelX: number; pixelY: number; markedOn: 'A' | 'B' }
+    passband: BlinkArtifact['targetPassband']
+    allowedMismatchFraction: number
+    grid: { width: number; height: number; pixelScaleArcsec: number }
+  }
+}
+const ANOMALY_REPORTS_KEY = 'cosmic-detective:spherex-anomaly-reports:v1'
+function loadAnomalyReports(): AnomalyReport[] {
+  try {
+    const value = JSON.parse(window.localStorage.getItem(ANOMALY_REPORTS_KEY) ?? '[]')
+    return Array.isArray(value) ? value.filter((item) => item?.format === 'Cosmic Detective SPHEREx anomaly report'
+      && typeof item.id === 'string' && typeof item.reportedAt === 'string'
+      && typeof item.classification === 'string' && typeof item.target?.raDeg === 'number'
+      && typeof item.target?.decDeg === 'number') : []
+  } catch { return [] }
+}
+function downloadAnomalyReport(report: AnomalyReport) {
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `spherex-anomaly-${report.id}.json`
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
 const COLLECTIONS = ['spherex_qr3', 'spherex_qr2'] as const
 const DEMO_FIELDS = [
   { label: 'IRSA sample field', ra: '156.09328159', dec: '-41.64466331' },
@@ -175,12 +211,15 @@ async function awaitProcessingArtifact(initial: ProcessingJob, setMessage: (mess
   }
 }
 
-function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean }) {
+function BlinkComparator({ frames, ra, dec, sizeDeg, cached, reports, onReport }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean; reports: AnomalyReport[]; onReport: (reports: AnomalyReport[]) => boolean }) {
   const [firstId, setFirstId] = useState('')
   const [secondId, setSecondId] = useState('')
   const [artifact, setArtifact] = useState<BlinkArtifact | null>(null)
   const [busy, setBusy] = useState(false)
   const [mismatchTolerance, setMismatchTolerance] = useState(0)
+  const [marker, setMarker] = useState<{ x: number; y: number; epoch: 'A' | 'B' } | null>(null)
+  const [classification, setClassification] = useState('possible-moving-source')
+  const [notes, setNotes] = useState('')
   const [message, setMessage] = useState('Choose two matching exposures, then register them on the worker.')
   const [showFirst, setShowFirst] = useState(true)
   const first = frames.find((frame) => frameKey(frame) === firstId) ?? frames[0]
@@ -189,6 +228,32 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     && frame.processingRelease === first.processingRelease && Number.isFinite(frame.time))
     .sort((a, b) => Math.abs(a.time - first.time) - Math.abs(b.time - first.time)) : []
   const second = references.find((frame) => frameKey(frame) === secondId) ?? references[0]
+  const markImage = (event: MouseEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    setMarker({ x: Math.min(0.999999, Math.max(0, (event.clientX - bounds.left) / bounds.width)), y: Math.min(0.999999, Math.max(0, (event.clientY - bounds.top) / bounds.height)), epoch: showFirst ? 'A' : 'B' })
+  }
+  const reportAnomaly = () => {
+    if (!artifact || !marker || !first || !second) return
+    const report: AnomalyReport = {
+      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`,
+      format: 'Cosmic Detective SPHEREx anomaly report', status: 'candidate-unverified',
+      reportedAt: new Date().toISOString(), classification, notes: notes.trim(),
+      target: { raDeg: ra, decDeg: dec, fieldSizeDeg: sizeDeg },
+      registeredBlink: {
+        first: { observationId: first.obs, date: first.date, detector: first.band, collection: first.collection, processingRelease: first.processingRelease, cutoutUrl: first.cutout },
+        second: { observationId: second.obs, date: second.date, detector: second.band, collection: second.collection, processingRelease: second.processingRelease, cutoutUrl: second.cutout },
+        marker: { xFraction: marker.x, yFraction: marker.y, pixelX: Math.round(marker.x * (artifact.width - 1)), pixelY: Math.round(marker.y * (artifact.height - 1)), markedOn: marker.epoch },
+        passband: artifact.targetPassband, allowedMismatchFraction: artifact.targetPassband.allowedMismatchFraction,
+        grid: { width: artifact.width, height: artifact.height, pixelScaleArcsec: artifact.pixelScaleArcsec },
+      },
+    }
+    const next = [report, ...reports].slice(0, 100)
+    const saved = onReport(next)
+    downloadAnomalyReport(report)
+    setMessage(saved
+      ? 'Candidate anomaly saved in this browser and downloaded as JSON. It has not been scientifically verified.'
+      : 'Candidate anomaly was downloaded as JSON, but browser storage was unavailable. It has not been scientifically verified.')
+  }
   useEffect(() => {
     if (!artifact) return
     const timer = window.setInterval(() => setShowFirst((value) => !value), 700)
@@ -196,7 +261,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
   }, [artifact])
   const run = async () => {
     if (!first || !second || cached) return
-    setBusy(true); setArtifact(null)
+    setBusy(true); setArtifact(null); setMarker(null)
     try {
       setMessage('Submitting matched cutouts to the SPHEREx registration worker…')
       const initial = await requestProcessing('blink-pair', {
@@ -236,15 +301,17 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     <div className="panel-title mono">REGISTERED BLINK · VISUAL COMPARISON</div>
     <p>Frames are eligible only when detector, QR collection, and processing release match. The worker checks target-pixel WCS-WAVE and tries up to 8 nearest-in-time repeats until it finds a passband match, then reprojects both IMAGE planes to one target-centered sky grid with one shared stretch. Image flags are not overlaid and blinking alone is not evidence of a discovery.</p>
     <div className="research-blink-controls">
-      <label>First exposure<select value={first ? frameKey(first) : ''} onChange={(event) => { setFirstId(event.target.value); setSecondId(''); setArtifact(null) }}>{frames.filter((frame) => frame.collection && frame.processingRelease).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}</select></label>
-      <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
-      <label>Passband mismatch limit: {mismatchTolerance.toFixed(2)}<input type="range" min="0" max="1" step="0.01" value={mismatchTolerance} onChange={(event) => { setMismatchTolerance(Number(event.target.value)); setArtifact(null) }} aria-label="Maximum relative wavelength and bandwidth mismatch" /></label>
+      <label>First exposure<select value={first ? frameKey(first) : ''} onChange={(event) => { setFirstId(event.target.value); setSecondId(''); setArtifact(null); setMarker(null) }}>{frames.filter((frame) => frame.collection && frame.processingRelease).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}</select></label>
+      <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null); setMarker(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
+      <label>Passband mismatch limit: {mismatchTolerance.toFixed(2)}<input type="range" min="0" max="1" step="0.01" value={mismatchTolerance} onChange={(event) => { setMismatchTolerance(Number(event.target.value)); setArtifact(null); setMarker(null) }} aria-label="Maximum relative wavelength and bandwidth mismatch" /></label>
       <button type="button" onClick={() => void run()} disabled={busy || !first || !second}>{busy ? 'Registering…' : 'Register and blink'}</button>
     </div>
     <p className="research-note">The limit applies to relative central-wavelength and bandwidth differences. At 0.00, both must match; higher settings admit increasingly different passbands, which can change apparent brightness and are only suitable for qualitative visual exploration.</p>
     <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
-    {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
+    {artifact && <><div className="research-image research-blink-image markable" role="button" tabIndex={0} aria-label="Click the registered image to mark a candidate anomaly" onClick={markImage} onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setMarker({ x: 0.5, y: 0.5, epoch: showFirst ? 'A' : 'B' }) } }}><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; click to mark a candidate anomaly`} />{marker && <span className="marker" style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }} />}<span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}{marker ? ` · MARKED ON ${marker.epoch}` : ''}</span></div>
       <p className="research-note">Matched from {artifact.candidateAttempts ?? 1} candidate{artifact.candidateAttempts === 1 ? '' : 's'}. Relative wavelength mismatch: {(artifact.targetPassband.relativeWavelengthDifference * 100).toFixed(2)}%; relative bandwidth mismatch: {(artifact.targetPassband.relativeBandwidthDifference * 100).toFixed(2)}% (limit {(artifact.targetPassband.allowedMismatchFraction * 100).toFixed(2)}%). Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
+    {artifact && <div className="research-anomaly-report"><div className="panel-title mono">FLAG A CANDIDATE ANOMALY</div><p>Like Training Grounds, click the image to place or move the red crosshair. This report records your visual clue for later review; it does not verify a transient or discovery.</p><div className="research-blink-controls"><label>Clue type<select value={classification} onChange={(event) => setClassification(event.target.value)}><option value="possible-moving-source">Possible moving source</option><option value="possible-brightness-change">Possible brightness change</option><option value="possible-image-artifact">Possible image artifact</option><option value="other-clue">Other clue</option></select></label><label>Investigator note<textarea value={notes} maxLength={2000} rows={3} onChange={(event) => setNotes(event.target.value)} placeholder="What looked unusual? Keep interpretation tentative." /></label><button className="flag-btn" type="button" onClick={reportAnomaly} disabled={!marker}>Report anomaly</button></div><p className="research-note">{marker ? `Marker: ${marker.x.toFixed(3)}, ${marker.y.toFixed(3)} of the registered image; epoch ${marker.epoch}.` : 'No marker placed yet. Click the blinking image to mark the clue.'} Reports are saved in this browser only and downloaded as JSON.</p></div>}
+    {reports.length > 0 && <section className="research-anomaly-report"><div className="panel-title mono">LOCAL ANOMALY REPORTS · {reports.length}</div><p>Stored only in this browser. They are candidate annotations, not verified findings.</p><ul className="research-anomaly-list">{reports.slice(0, 5).map((report) => <li key={report.id}><span>{new Date(report.reportedAt).toLocaleString()} · {report.classification.replaceAll('-', ' ')} · RA {report.target.raDeg.toFixed(5)} Dec {report.target.decDeg.toFixed(5)}</span><button type="button" onClick={() => downloadAnomalyReport(report)}>Download JSON</button></li>)}</ul></section>}
   </section>
 }
 
@@ -398,6 +465,14 @@ export function ResearchPortal() {
   const [busy, setBusy] = useState(false), [status, setStatus] = useState('Search the live IRSA SPHEREx archive for coverage at a sky position.'), [error, setError] = useState(false)
   const [view, setView] = useState<'bands' | 'raw' | 'blink' | 'composite'>('bands')
   const [compositeReport, setCompositeReport] = useState<CompositeReport | null>(null)
+  const [anomalyReports, setAnomalyReports] = useState<AnomalyReport[]>(loadAnomalyReports)
+  const saveAnomalyReports = (next: AnomalyReport[]) => {
+    setAnomalyReports(next)
+    try {
+      window.localStorage.setItem(ANOMALY_REPORTS_KEY, JSON.stringify(next))
+      return true
+    } catch { return false }
+  }
   const [sourceMode, setSourceMode] = useState<'live' | 'cached'>(initial.source)
   const [cachedTarget, setCachedTarget] = useState('')
   const [provenance, setProvenance] = useState<'live' | 'cached-live'>('live')
@@ -633,6 +708,7 @@ export function ResearchPortal() {
         observationId: frame.obs, detector: frame.band, observationTime: Number.isFinite(frame.time) ? new Date(frame.time).toISOString() : null,
         collection: frame.collection, processingRelease: frame.processingRelease, imageUrl: frame.url, cutoutUrl: frame.cutout,
       })),
+      anomalyReports,
       processedVisualizations: { falseColorComposite: compositeReport },
       measuredSourceData: activeIRSAResult ? {
         source: activeIRSAResult.source, rows: activeIRSAResult.rows, rejectedByFlags: activeIRSAResult.rejected,
@@ -724,7 +800,7 @@ export function ResearchPortal() {
         {periodResult?.available ? <><p>Trial-period fold · {periodResult.value.cycles.toFixed(2)} cycles covered · raw weighted χ² reduction {periodResult.value.foldedModelImprovement.toFixed(3)} versus a constant-flux model. This descriptive value does not account for added bin parameters or period trials and is not a false-alarm probability; it also omits shared calibration covariance.</p><MeasurementPlot label="SPHEREx trial-period phase fold with weighted flux uncertainties" points={periodResult.value.bins.map((bin) => ({ x: bin.phase, y: bin.flux, error: bin.uncertainty }))} xLabel="Phase (cycle)" yLabel="Flux (µJy)" /><div className="research-table-wrap"><table className="research-table"><thead><tr><th>Phase</th><th>Weighted flux (µJy)</th><th>Uncertainty (µJy)</th><th>Points</th></tr></thead><tbody>{periodResult.value.bins.map((bin) => <tr key={bin.phase}><td>{bin.phase.toFixed(3)}</td><td>{bin.flux.toFixed(4)}</td><td>{bin.uncertainty.toFixed(4)}</td><td>{bin.count}</td></tr>)}</tbody></table></div></> : <p>{periodResult && !periodResult.available ? periodResult.reason : 'Enter a trial period. At least six same-detector measurements spanning two cycles are required.'}</p>}
       </>}
     </section>}
-    {view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} />}
+    {view === 'blink' && selectedFrames.length > 0 && <BlinkComparator frames={blinkFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} reports={anomalyReports} onReport={saveAnomalyReports} />}
     {view === 'composite' && selectedFrames.length > 0 && <BandMixer frames={selectedFrames} ra={Number(ra)} dec={Number(dec)} sizeDeg={Number(fov) / 60} cached={provenance === 'cached-live'} onArtifact={setCompositeReport} />}
     {(view === 'bands' || view === 'raw') && selectedFrames.length > 0 && <section className="research-results"><div className="panel-title mono">{view === 'bands' ? 'BAND INSPECTOR' : 'RAW OBSERVATION TIMELINE'} · {selectedFrames.length} FILES</div>
       {view === 'bands' && <div className="coverage-strip">{BANDS.filter((b) => bands.includes(b)).map((b) => { const count = selectedFrames.filter((f) => f.band === b).length; return <div key={b}><b>{b}</b><span>{WAVE[b]}</span><strong>{count} {count === 1 ? 'image' : 'images'}</strong></div> })}</div>}

@@ -1053,7 +1053,16 @@ kbd {
 .research-blink-controls button:disabled { opacity: .5; cursor: not-allowed; }
 .research-blink-image { min-height: 0; }
 .research-blink-image img { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.research-blink-image.markable { cursor: crosshair; outline-offset: 3px; }
+.research-blink-image.markable:focus-visible { outline: 2px solid var(--accent); }
 .research-blink-image span { position: absolute; left: 8px; bottom: 8px; padding: 4px 6px; color: white; background: rgba(0,0,0,.72); font: 11px 'IBM Plex Mono', monospace; }
+.research-anomaly-report { margin-top: 16px; padding: 14px; border: 1px solid var(--line-strong); background: var(--panel); }
+.research-anomaly-report textarea { width: 100%; resize: vertical; padding: 9px; border: 1px solid var(--line-strong); background: var(--panel-solid); color: var(--text); font: 12px 'IBM Plex Mono', monospace; }
+.research-anomaly-report .flag-btn { border-color: var(--bad); color: var(--bad); }
+.research-anomaly-report .flag-btn:disabled { opacity: .45; cursor: not-allowed; }
+.research-anomaly-list { display: grid; gap: 8px; padding-left: 20px; }
+.research-anomaly-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; color: var(--muted); font: 11px 'IBM Plex Mono', monospace; }
+.research-anomaly-list button { padding: 6px 8px; border: 1px solid var(--line-strong); background: var(--panel-solid); color: var(--accent); cursor: pointer; font: inherit; }
 .research-image-state { position: absolute; inset: 0; display: grid; place-items: center; padding: 18px; text-align: center; color: var(--muted); background: rgba(0, 0, 0, .72); }
 .research-playback { display: flex; align-items: center; gap: 12px; margin: 10px 0 14px; color: var(--muted); font: 11px 'IBM Plex Mono', monospace; }
 .research-playback button { border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--text); padding: 7px 10px; cursor: pointer; font: inherit; }
