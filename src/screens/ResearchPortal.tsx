@@ -106,7 +106,7 @@ function cachedFrames(ra: number, dec: number, fov: number, bands: string[]): Fr
 type BlinkArtifact = {
   firstPng: string; secondPng: string; width: number; height: number; pixelScaleArcsec: number
   sharedStretch: { lowMJySr: number; highMJySr: number; percentiles: number[] }
-  targetPassband: { firstWavelengthUm: number; secondWavelengthUm: number; firstBandwidthUm: number; secondBandwidthUm: number; wavelengthDeltaUm: number; relativeBandwidthDifference: number }
+  targetPassband: { firstWavelengthUm: number; secondWavelengthUm: number; firstBandwidthUm: number; secondBandwidthUm: number; wavelengthDeltaUm: number; relativeWavelengthDifference: number; relativeBandwidthDifference: number; allowedMismatchFraction: number }
   matchedReference?: { obsId?: string; date?: string | null }
   candidateAttempts?: number
   semantics: string
@@ -116,34 +116,63 @@ type ProcessingJob = Awaited<ReturnType<typeof requestProcessing>>
 
 async function awaitProcessingArtifact(initial: ProcessingJob, setMessage: (message: string) => void) {
   let job = initial
-  const startedAt = Date.now()
-  const deadline = startedAt + 5 * 60 * 1000
+  const pollingStartedAt = Date.now()
+  const deadline = pollingStartedAt + 5 * 60 * 1000
   let resultLookupDone = false
-  while (true) {
-    if (job.state === 'unavailable') throw new Error(job.reason)
-    if (job.state === 'available' && job.resultUrl) break
-    if (job.state === 'available' && resultLookupDone) throw new Error(job.reason || 'Completed job did not provide a result link.')
-    if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
-    if (Date.now() >= deadline) throw new Error('Stopped polling after 5 minutes. The processing job remains on the server.')
-    if (job.state === 'computing') {
-      setMessage(`${job.reason || 'Processing on the SPHEREx worker…'} (${Math.floor((Date.now() - startedAt) / 1000)}s elapsed)`)
-      await new Promise((resolve) => window.setTimeout(resolve, 5000))
-    } else if (job.state === 'available') resultLookupDone = true
-    let response: Response
-    try {
-      response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`, { signal: AbortSignal.timeout(20000) })
-    } catch {
-      throw new Error('The worker status check timed out or could not reach Netlify.')
+  let elapsedBaseMs = 0
+  let elapsedAnchor = performance.now()
+  let currentReason = job.reason || 'Processing on the SPHEREx worker…'
+  const syncElapsedFromServer = (record: ProcessingJob) => {
+    const created = Date.parse(record.createdAt ?? '')
+    const serverNow = Date.parse(record.serverNow ?? '')
+    if (Number.isFinite(created) && Number.isFinite(serverNow)) {
+      elapsedBaseMs = Math.max(0, serverNow - created)
+      elapsedAnchor = performance.now()
     }
-    if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
-    const nextJob = await response.json().catch(() => null) as ProcessingJob | null
-    if (!nextJob || !['available', 'computing', 'unavailable'].includes(nextJob.state)) throw new Error('The processing function returned an invalid job status.')
-    job = nextJob
   }
-  if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Processing did not produce an artifact.')
-  const resultResponse = await fetch(job.resultUrl)
-  if (!resultResponse.ok) throw new Error(`Processed product download failed (${resultResponse.status}).`)
-  return await resultResponse.json() as Record<string, unknown>
+  syncElapsedFromServer(job)
+  const formatElapsed = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000)
+    const minutes = Math.floor(totalSeconds / 60)
+    const seconds = totalSeconds % 60
+    return minutes ? `${minutes}m ${String(seconds).padStart(2, '0')}s` : `${seconds}s`
+  }
+  const renderProgress = () => setMessage(`${currentReason} (${formatElapsed(elapsedBaseMs + performance.now() - elapsedAnchor)} elapsed)`)
+  const timer = window.setInterval(renderProgress, 1000)
+  try {
+    while (true) {
+      if (job.state === 'unavailable') throw new Error(job.reason)
+      if (job.state === 'available' && job.resultUrl) break
+      if (job.state === 'available' && resultLookupDone) throw new Error(job.reason || 'Completed job did not provide a result link.')
+      if (!job.jobId) throw new Error(job.reason || 'Worker returned no job ID.')
+      if (Date.now() >= deadline) throw new Error('Stopped polling after 5 minutes. The processing job remains on the server.')
+      if (job.state === 'computing') {
+        currentReason = job.reason || 'Processing on the SPHEREx worker…'
+        renderProgress()
+        await new Promise((resolve) => window.setTimeout(resolve, 5000))
+      } else if (job.state === 'available') resultLookupDone = true
+      let response: Response
+      try {
+        response = await fetch(`/.netlify/functions/spherex-job?jobId=${encodeURIComponent(job.jobId)}`, { signal: AbortSignal.timeout(20000) })
+      } catch {
+        throw new Error('The worker status check timed out or could not reach Netlify.')
+      }
+      if (!response.ok) throw new Error(`Worker status request failed (${response.status}).`)
+      const nextJob = await response.json().catch(() => null) as ProcessingJob | null
+      if (!nextJob || !['available', 'computing', 'unavailable'].includes(nextJob.state)) throw new Error('The processing function returned an invalid job status.')
+      if (nextJob.state === 'computing') {
+        currentReason = nextJob.reason || 'Processing on the SPHEREx worker…'
+        syncElapsedFromServer(nextJob)
+      }
+      job = nextJob
+    }
+    if (job.state !== 'available' || !job.resultUrl) throw new Error(job.reason || 'Processing did not produce an artifact.')
+    const resultResponse = await fetch(job.resultUrl)
+    if (!resultResponse.ok) throw new Error(`Processed product download failed (${resultResponse.status}).`)
+    return await resultResponse.json() as Record<string, unknown>
+  } finally {
+    window.clearInterval(timer)
+  }
 }
 
 function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]; ra: number; dec: number; sizeDeg: number; cached: boolean }) {
@@ -151,6 +180,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
   const [secondId, setSecondId] = useState('')
   const [artifact, setArtifact] = useState<BlinkArtifact | null>(null)
   const [busy, setBusy] = useState(false)
+  const [mismatchTolerance, setMismatchTolerance] = useState(0)
   const [message, setMessage] = useState('Choose two matching exposures, then register them on the worker.')
   const [showFirst, setShowFirst] = useState(true)
   const first = frames.find((frame) => frameKey(frame) === firstId) ?? frames[0]
@@ -186,8 +216,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
             cutoutUrl: frame.cutout, obsId: frame.id, date: frame.date,
           }))),
           pixelScaleArcsec: '6.2',
-          maxWavelengthDeltaUm: '0.02',
-          maxBandwidthFraction: '0',
+          maxPassbandMismatchFraction: mismatchTolerance.toFixed(2),
         },
       })
       if (initial.state === 'unavailable') throw new Error(initial.reason)
@@ -195,7 +224,9 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
       if (!result.firstPng?.startsWith('data:image/png;base64,') || !result.secondPng?.startsWith('data:image/png;base64,')) throw new Error('Worker returned an invalid registered-image product.')
       const matched = frames.find((frame) => frame.id === result.matchedReference?.obsId)
       if (matched) setSecondId(frameKey(matched))
-      setArtifact(result); setMessage('WCS registration complete. Visual blinking only; this is not a detection or flux-difference result.')
+      setArtifact(result); setMessage(mismatchTolerance > 0
+        ? 'WCS registration complete with relaxed passband tolerance. Spectral differences can change apparent brightness; visual blinking only.'
+        : 'WCS registration complete with strict passband matching. Visual blinking only; this is not a detection or flux-difference result.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Image registration failed.')
     } finally { setBusy(false) }
@@ -207,11 +238,13 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     <div className="research-blink-controls">
       <label>First exposure<select value={first ? frameKey(first) : ''} onChange={(event) => { setFirstId(event.target.value); setSecondId(''); setArtifact(null) }}>{frames.filter((frame) => frame.collection && frame.processingRelease).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}</select></label>
       <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
+      <label>Passband mismatch limit: {mismatchTolerance.toFixed(2)}<input type="range" min="0" max="1" step="0.01" value={mismatchTolerance} onChange={(event) => { setMismatchTolerance(Number(event.target.value)); setArtifact(null) }} aria-label="Maximum relative wavelength and bandwidth mismatch" /></label>
       <button type="button" onClick={() => void run()} disabled={busy || !first || !second}>{busy ? 'Registering…' : 'Register and blink'}</button>
     </div>
+    <p className="research-note">The limit applies to relative central-wavelength and bandwidth differences. At 0.00, both must match; higher settings admit increasingly different passbands, which can change apparent brightness and are only suitable for qualitative visual exploration.</p>
     <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
     {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
-      <p className="research-note">Matched from {artifact.candidateAttempts ?? 1} candidate{artifact.candidateAttempts === 1 ? '' : 's'}. Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
+      <p className="research-note">Matched from {artifact.candidateAttempts ?? 1} candidate{artifact.candidateAttempts === 1 ? '' : 's'}. Relative wavelength mismatch: {(artifact.targetPassband.relativeWavelengthDifference * 100).toFixed(2)}%; relative bandwidth mismatch: {(artifact.targetPassband.relativeBandwidthDifference * 100).toFixed(2)}% (limit {(artifact.targetPassband.allowedMismatchFraction * 100).toFixed(2)}%). Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
   </section>
 }
 

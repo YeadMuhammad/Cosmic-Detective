@@ -16,6 +16,9 @@ export interface ProcessingCapabilityRecord {
   resultPath?: string
   resultUrl?: string
   cacheKey?: string
+  createdAt?: string | null
+  claimedAt?: string | null
+  serverNow?: string
 }
 
 /** Unknown / failed fetches must surface as 'unavailable', never as a guess. */

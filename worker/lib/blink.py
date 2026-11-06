@@ -89,18 +89,20 @@ def register_blink_pair(first_fits: bytes, second_fits: bytes, ra: float, dec: f
 
     params = params or {}
     pixel_scale_arcsec = float(params.get("pixelScaleArcsec", 6.2))
-    max_wavelength_delta_um = float(params.get("maxWavelengthDeltaUm", 0.0))
-    max_bandwidth_fraction = float(params.get("maxBandwidthFraction", 0.0))
+    max_passband_mismatch = float(params.get("maxPassbandMismatchFraction", 0.0))
     if not (0.1 <= pixel_scale_arcsec <= 60):
         raise BlinkError("Requested blink pixel scale is outside supported bounds.")
-    if max_wavelength_delta_um < 0 or max_bandwidth_fraction < 0:
-        raise BlinkError("Wavelength matching tolerances must be non-negative.")
+    if not (0 <= max_passband_mismatch <= 1):
+        raise BlinkError("Passband mismatch tolerance must be between 0.00 and 1.00.")
 
     first, first_wcs, first_wave, first_width = _read_plane(first_fits, ra, dec)
     second, second_wcs, second_wave, second_width = _read_plane(second_fits, ra, dec)
     wave_delta = abs(first_wave - second_wave)
+    wave_fraction = wave_delta / ((first_wave + second_wave) / 2)
     width_fraction = abs(first_width - second_width) / max(first_width, second_width)
-    if wave_delta > max_wavelength_delta_um or width_fraction > max_bandwidth_fraction:
+    max_wavelength_delta_um = max_passband_mismatch * ((first_wave + second_wave) / 2)
+    max_bandwidth_fraction = max_passband_mismatch
+    if wave_fraction > max_passband_mismatch or width_fraction > max_passband_mismatch:
         raise BlinkError(
             "Observations do not meet the configured target-pixel passband match: "
             f"|Δλ|={wave_delta:.6g} µm (limit {max_wavelength_delta_um:.6g}), "
@@ -143,9 +145,11 @@ def register_blink_pair(first_fits: bytes, second_fits: bytes, ra: float, dec: f
         "targetPassband": {
             "firstWavelengthUm": first_wave, "secondWavelengthUm": second_wave,
             "firstBandwidthUm": first_width, "secondBandwidthUm": second_width,
-            "wavelengthDeltaUm": wave_delta, "relativeBandwidthDifference": width_fraction,
+            "wavelengthDeltaUm": wave_delta, "relativeWavelengthDifference": wave_fraction,
+            "relativeBandwidthDifference": width_fraction,
+            "allowedMismatchFraction": max_passband_mismatch,
         },
-        "semantics": "visual-blink-only; pixel flags are not overlaid; not a calibrated difference or detection",
+        "semantics": "visual-blink-only; passband mismatches are user-tolerated and may change apparent brightness; pixel flags are not overlaid; not a calibrated difference or detection",
     }
 
 

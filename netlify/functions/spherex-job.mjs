@@ -111,8 +111,8 @@ function validation(requestBody) {
         }
       }
     }
-    if (!['0', '0.001', '0.002', '0.005', '0.01', '0.02'].includes(String(p.maxWavelengthDeltaUm ?? '0'))) return 'maxWavelengthDeltaUm must be a supported conservative tolerance in microns.'
-    if (String(p.maxBandwidthFraction ?? '0') !== '0') return 'Blink pairs currently require matching target-pixel bandwidths.'
+    const mismatch = Number(p.maxPassbandMismatchFraction ?? 0)
+    if (!Number.isFinite(mismatch) || mismatch < 0 || mismatch > 1) return 'maxPassbandMismatchFraction must be between 0.00 and 1.00.'
   }
   if (product === 'band-composite') {
     const p = body.params ?? {}

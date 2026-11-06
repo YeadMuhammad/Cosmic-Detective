@@ -128,18 +128,23 @@ const UNAVAILABLE_REASONS = {
  * the recorded reason; a missing result after completion is also unavailable.
  */
 export function capabilityForJob(job) {
+  const timing = job && typeof job === 'object' ? {
+    createdAt: job.created_at ?? null,
+    claimedAt: job.claimed_at ?? null,
+    serverNow: new Date().toISOString(),
+  } : {}
   if (!job || typeof job !== 'object') {
     return { state: 'unavailable', reason: 'No processing job was found for this request.' }
   }
   switch (job.status) {
     case 'queued':
     case 'running':
-      return { state: 'computing', reason: UNAVAILABLE_REASONS[job.status], jobId: job.id }
+      return { state: 'computing', reason: UNAVAILABLE_REASONS[job.status], jobId: job.id, ...timing }
     case 'completed':
       if (!job.result_path) {
         return { state: 'unavailable', reason: 'The completed job stored no product; the result is unavailable.', jobId: job.id }
       }
-      return { state: 'available', reason: 'Product is available in the SPHEREx product store.', jobId: job.id, resultPath: job.result_path }
+      return { state: 'available', reason: 'Product is available in the SPHEREx product store.', jobId: job.id, resultPath: job.result_path, ...timing }
     case 'failed':
       return { state: 'unavailable', reason: job.error_reason || 'The SPHEREx processing worker reported a failure without a reason.', jobId: job.id }
     default:
