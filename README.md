@@ -193,6 +193,7 @@ update public.profiles set can_lead = true where lower(username) = lower('YourUs
 | `npm run preview` | Serve the production build locally |
 | `npm run fetch-sky` | Refetch sky plates from NASA SkyView |
 | `npm run fetch-spherex` | Run `scripts/fetch-spherex.mjs` |
+| `npm run dev:all` | Starts `Netlify Dev` and the `Python worker` together |
 
 ## Documentation
 
