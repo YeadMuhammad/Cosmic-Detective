@@ -29,10 +29,13 @@ inside Netlify Functions (PLAN.md item 2, "Worker, jobs, and cache"):
 ## Product stages today
 
 - `cutout-render`: verify-cutout → read-image (astropy) → stretch-render.
-- `blink-pair`: downloads two bounded cutouts, checks target-pixel WCS-WAVE,
-  reprojects their IMAGE planes to a shared target-centered TAN grid, and
-  returns both epochs with a shared display stretch. This is visual comparison
-  only: flags are not overlaid and it is not a difference or detection product.
+- `blink-pair`: downloads bounded cutouts and checks target-pixel WCS-WAVE.
+  Requests can provide up to 8 same-detector/release reference candidates; the
+  worker skips passband mismatches and registers the first candidate within the
+  strict wavelength and bandwidth gates. It reprojects the matching IMAGE
+  planes to a shared target-centered TAN grid and returns both epochs with a
+  shared display stretch. This is visual comparison only: flags are not
+  overlaid and it is not a difference or detection product.
 - `photometry`: verifies the cutout, then fails closed with the missing science
   calibration requirements. No photometry artifact is currently published.
 

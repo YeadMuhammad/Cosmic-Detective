@@ -41,7 +41,7 @@ from lib.cache_keys import upload_path
 from lib.jobs import Jobs, RestError
 from lib.cutouts import NotFits, PayloadTooLarge
 from lib.photometry import PhotometryError, extract_source_photometry
-from lib.blink import register_blink_pair
+from lib.blink import BlinkError, register_blink_pair
 
 BUCKET = os.environ.get("SPHEREX_BUCKET", "spherex-products")
 POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "5"))
@@ -74,11 +74,17 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
 
     # 1. Verify cutout support FIRST — never accept a 'cutout' that is a full MEF.
     if product == "blink-pair":
-        reference_url = str((job.get("params") or {}).get("referenceCutoutUrl") or "")
+        params = job.get("params") or {}
+        reference_url = str(params.get("referenceCutoutUrl") or "")
         if not reference_url:
             raise RuntimeError("blink-pair job is missing its reference cutout")
         body, verified = cutouts.download_verified_cutout(cutout_url)
-        reference_body, reference_verified = cutouts.download_verified_cutout(reference_url)
+        raw_candidates = params.get("referenceCandidates")
+        candidates = json.loads(raw_candidates) if raw_candidates else []
+        if not candidates:
+            candidates = [{"cutoutUrl": reference_url, "obsId": params.get("referenceObsId"), "date": None}]
+        if not isinstance(candidates, list) or len(candidates) > 8:
+            raise RuntimeError("blink-pair job contains an invalid reference candidate list")
     elif product == "photometry":
         body, verified = cutouts.download_verified_cutout(cutout_url)
     else:
@@ -89,15 +95,33 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     # 2. Build the product only after the bounded cutout has been verified.
     if product == "blink-pair":
         params = job.get("params") or {}
-        payload_object = register_blink_pair(
-            body,
-            reference_body,
-            float(job["ra"]),
-            float(job["dec"]),
-            float(job["size_deg"]),
-            params,
-        )
-        payload_object["cutouts"] = {"first": verified, "second": reference_verified}
+        failures = []
+        payload_object = None
+        for candidate in candidates:
+            candidate_url = str(candidate.get("cutoutUrl") or "")
+            try:
+                reference_body, reference_verified = cutouts.download_verified_cutout(candidate_url)
+            except Exception as error:
+                failures.append(f"{candidate.get('obsId', 'candidate')}: {type(error).__name__}: {error}")
+                continue
+            try:
+                result = register_blink_pair(
+                    body, reference_body, float(job["ra"]), float(job["dec"]),
+                    float(job["size_deg"]), params,
+                )
+            except BlinkError as error:
+                if not str(error).startswith("Observations do not meet the configured target-pixel passband match:"):
+                    raise
+                failures.append(f"{candidate.get('obsId', 'candidate')}: {error}")
+                continue
+            result["matchedReference"] = {"obsId": candidate.get("obsId"), "date": candidate.get("date")}
+            result["candidateAttempts"] = len(failures) + 1
+            result["cutouts"] = {"first": verified, "second": reference_verified}
+            payload_object = result
+            break
+        if payload_object is None:
+            details = " | ".join(failures[-3:])
+            raise RuntimeError(f"No matching passband found in {len(candidates)} candidate observations. {details}")
     elif product == "photometry":
         payload_object = extract_source_photometry(
             body,

@@ -100,6 +100,17 @@ function validation(requestBody) {
       return 'Blink pairs must use the same detector, collection, and processing release and include a valid reference cutout.'
     }
     if (!validateCutout(p.referenceCutoutUrl, collection, p.referenceObsId, detector, release)) return 'referenceCutoutUrl must match the requested target and reference observation.'
+    if (p.referenceCandidates !== undefined) {
+      let candidates
+      try { candidates = JSON.parse(p.referenceCandidates) } catch { return 'referenceCandidates must be a JSON array of candidate observations.' }
+      if (!Array.isArray(candidates) || candidates.length < 1 || candidates.length > 8) return 'Blink requests may include 1 to 8 reference candidates.'
+      for (const candidate of candidates) {
+        if (!candidate || typeof candidate !== 'object' || !OBS_ID_RE.test(String(candidate.obsId ?? ''))
+          || !validateCutout(candidate.cutoutUrl, collection, candidate.obsId, detector, release)) {
+          return 'Every reference candidate must be a matching IRSA cutout from the same detector, collection, and release.'
+        }
+      }
+    }
     if (!['0', '0.001', '0.002', '0.005', '0.01', '0.02'].includes(String(p.maxWavelengthDeltaUm ?? '0'))) return 'maxWavelengthDeltaUm must be a supported conservative tolerance in microns.'
     if (String(p.maxBandwidthFraction ?? '0') !== '0') return 'Blink pairs currently require matching target-pixel bandwidths.'
   }

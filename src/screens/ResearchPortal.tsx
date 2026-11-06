@@ -35,10 +35,12 @@ function rowsFromVOTable(xml: string) {
   if (failed) throw new Error(failed.textContent?.trim() || 'IRSA rejected the archive query.')
   // VOTable uses an XML namespace; localName keeps this working whether IRSA
   // includes that namespace or changes its prefix.
-  const fields = [...doc.getElementsByTagName('*')].filter((el) => el.localName === 'FIELD')
+  const table = [...doc.getElementsByTagName('*')].find((el) => el.localName === 'TABLE'
+    && [...el.getElementsByTagName('*')].some((child) => child.localName === 'TABLEDATA'))
+  if (!table) throw new Error('IRSA returned a VOTable without a TABLEDATA result. Try again or open the SPHEREx Data Explorer.')
+  const fields = [...table.children].filter((el) => el.localName === 'FIELD')
     .map((f) => (f.getAttribute('name') || f.getAttribute('ID') || '').toLowerCase())
-  const tableData = [...doc.getElementsByTagName('*')].find((el) => el.localName === 'TABLEDATA')
-  if (!tableData) throw new Error('IRSA returned a VOTable without a TABLEDATA result. Try again or open the SPHEREx Data Explorer.')
+  const tableData = [...table.getElementsByTagName('*')].find((el) => el.localName === 'TABLEDATA')!
   const rows = [...tableData.getElementsByTagName('*')].filter((el) => el.localName === 'TR').map((tr) => {
     const cells = [...tr.getElementsByTagName('*')].filter((el) => el.localName === 'TD').map((td) => td.textContent?.trim() ?? '')
     return Object.fromEntries(fields.map((f, i) => [f, cells[i] ?? '']))
@@ -105,6 +107,8 @@ type BlinkArtifact = {
   firstPng: string; secondPng: string; width: number; height: number; pixelScaleArcsec: number
   sharedStretch: { lowMJySr: number; highMJySr: number; percentiles: number[] }
   targetPassband: { firstWavelengthUm: number; secondWavelengthUm: number; firstBandwidthUm: number; secondBandwidthUm: number; wavelengthDeltaUm: number; relativeBandwidthDifference: number }
+  matchedReference?: { obsId?: string; date?: string | null }
+  candidateAttempts?: number
   semantics: string
 }
 
@@ -118,7 +122,8 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
   const first = frames.find((frame) => frameKey(frame) === firstId) ?? frames[0]
   const references = first ? frames.filter((frame) => frameKey(frame) !== frameKey(first)
     && frame.band === first.band && frame.collection === first.collection
-    && frame.processingRelease === first.processingRelease && Number.isFinite(frame.time)) : []
+    && frame.processingRelease === first.processingRelease && Number.isFinite(frame.time))
+    .sort((a, b) => Math.abs(a.time - first.time) - Math.abs(b.time - first.time)) : []
   const second = references.find((frame) => frameKey(frame) === secondId) ?? references[0]
   useEffect(() => {
     if (!artifact) return
@@ -143,6 +148,9 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
           referenceDetector: second.band,
           referenceRelease: second.processingRelease,
           referenceCollection: second.collection,
+          referenceCandidates: JSON.stringify([...references.filter((frame) => frameKey(frame) === frameKey(second)), ...references.filter((frame) => frameKey(frame) !== frameKey(second))].slice(0, 8).map((frame) => ({
+            cutoutUrl: frame.cutout, obsId: frame.id, date: frame.date,
+          }))),
           pixelScaleArcsec: '6.2',
           maxWavelengthDeltaUm: '0.02',
           maxBandwidthFraction: '0',
@@ -188,6 +196,8 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
       if (!resultResponse.ok) throw new Error(`Registered product download failed (${resultResponse.status}).`)
       const result = await resultResponse.json() as BlinkArtifact
       if (!result.firstPng?.startsWith('data:image/png;base64,') || !result.secondPng?.startsWith('data:image/png;base64,')) throw new Error('Worker returned an invalid registered-image product.')
+      const matched = frames.find((frame) => frame.id === result.matchedReference?.obsId)
+      if (matched) setSecondId(frameKey(matched))
       setArtifact(result); setMessage('WCS registration complete. Visual blinking only; this is not a detection or flux-difference result.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Image registration failed.')
@@ -196,7 +206,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
   if (cached) return <section className="research-results"><p>Cached demonstration cutouts do not include validated target-pixel wavelength metadata. Search the live archive to run a scientifically matched blink.</p></section>
   return <section className="research-results" aria-label="Registered SPHEREx blink comparator" aria-busy={busy}>
     <div className="panel-title mono">REGISTERED BLINK · VISUAL COMPARISON</div>
-    <p>Frames are eligible only when detector, QR collection, and processing release match. The worker checks target-pixel WCS-WAVE, reprojects both IMAGE planes to one target-centered sky grid, and applies one shared stretch. Image flags are not overlaid and blinking alone is not evidence of a discovery.</p>
+    <p>Frames are eligible only when detector, QR collection, and processing release match. The worker checks target-pixel WCS-WAVE and tries up to 8 nearest-in-time repeats until it finds a passband match, then reprojects both IMAGE planes to one target-centered sky grid with one shared stretch. Image flags are not overlaid and blinking alone is not evidence of a discovery.</p>
     <div className="research-blink-controls">
       <label>First exposure<select value={first ? frameKey(first) : ''} onChange={(event) => { setFirstId(event.target.value); setSecondId(''); setArtifact(null) }}>{frames.filter((frame) => frame.collection && frame.processingRelease).map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.band} · {frame.date} · {frame.obs}</option>)}</select></label>
       <label>Second exposure<select value={second ? frameKey(second) : ''} onChange={(event) => { setSecondId(event.target.value); setArtifact(null) }} disabled={!references.length}>{references.map((frame) => <option key={frameKey(frame)} value={frameKey(frame)}>{frame.date} · {frame.obs}</option>)}</select></label>
@@ -204,7 +214,7 @@ function BlinkComparator({ frames, ra, dec, sizeDeg, cached }: { frames: Frame[]
     </div>
     <p className="research-status blink-job-status" role="status" aria-live="polite">{busy && <span className="blink-processing-indicator" aria-hidden="true" />}<span>{message}</span></p>
     {artifact && <><div className="research-image research-blink-image"><img src={showFirst ? artifact.firstPng : artifact.secondPng} alt={`Registered ${showFirst ? first?.date : second?.date} SPHEREx image; blink alternates between two epochs`} /><span>{showFirst ? first?.date : second?.date} · {showFirst ? 'A' : 'B'}</span></div>
-      <p className="research-note">Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
+      <p className="research-note">Matched from {artifact.candidateAttempts ?? 1} candidate{artifact.candidateAttempts === 1 ? '' : 's'}. Shared stretch: {artifact.sharedStretch.lowMJySr.toPrecision(5)}–{artifact.sharedStretch.highMJySr.toPrecision(5)} MJy/sr · Target wavelength: {artifact.targetPassband.firstWavelengthUm.toFixed(4)} / {artifact.targetPassband.secondWavelengthUm.toFixed(4)} µm · Bandwidths: {artifact.targetPassband.firstBandwidthUm.toFixed(4)} / {artifact.targetPassband.secondBandwidthUm.toFixed(4)} µm · {artifact.width}×{artifact.height} grid at {artifact.pixelScaleArcsec} arcsec/pixel. {artifact.semantics}</p></>}
   </section>
 }
 
