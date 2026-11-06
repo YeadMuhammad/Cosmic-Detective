@@ -1,0 +1,1 @@
+   update public.profiles set can_lead = true where lower(username) = lower('cant_lead');

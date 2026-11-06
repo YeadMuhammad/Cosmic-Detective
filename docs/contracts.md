@@ -586,7 +586,33 @@ The script does not set a non-zero exit code on failure.
 | `/.netlify/images?url=&w=&fm=webp` | at runtime | Provided by Netlify; not handled by `vite.config.ts` |
 | Google Fonts (Big Shoulders Display 600/800/900, Chakra Petch 400–700, JetBrains Mono 400/600) | at runtime | Linked in `index.html`; CSS stacks fall back to system fonts |
 
+### 10.3 SPHEREx metadata registry contract (`scripts/build-spherex-registry.mjs`)
+
+Three layered artifacts, one source of truth each, under `data/spherex/registry/`:
+
+| Layer | File | Content | Mutable? |
+|---|---|---|---|
+| Snapshot | `snapshot.json` | Verbatim IRSA TAP rows (`spherex.artifact JOIN spherex.plane`) for every seed target, keyed by `capturedAt` | Regenerated per run; prior snapshots with `--keep-old` go to `history/` |
+| Registry | `registry.json` | Adapter output: observations grouped by footprint (`obsId`), detector channel (`D1`–`D6`), processing release (`qr2/qr3` + L2B version), survey pass and time; per-target summary and wavelength tier | Derived — always regenerated from the snapshot |
+| Fixtures | `acceptance-fixtures.json` | Per-target expected frames + `capabilitiesFor()` results **derived from the snapshot, never hand-asserted** | Derived — regenerated with the registry |
+
+Seeded targets (from PLAN.md item 2): GOODS-N, GOODS-S, COSMOS (deep fields); north and south ecliptic poles;
+Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis.
+
+**Wavelength rule:** plane-level `energy_bounds_{lower,upper}` describe the whole detector band, never the
+target pixel (linear variable filters). Registry observations carry `wavelengthTier: 'plane-bounds'` until
+scripts/fetch-spherex.py has evaluated the cutout's WCS-WAVE value for that exposure, which sets
+`wavelengthTier: 'wcs-wave'` with `wavelengthAtTargetUm` (matched by `obsId` + band from
+`data/spherex/manifest.json`). Never compare or gate on plane-level bounds as if they were target-pixel values.
+
+**Runtime contract:** `vite.config.ts` publishes `registry.json` as the static asset `/spherex/registry.json`
+(never bundled); `src/lib/registry.ts` fetches it lazily and derives capability states with the same adapter +
+`capabilitiesFor()` pair used to generate the fixtures. `node --test scripts/acceptance.test.mjs` re-derives
+every fixture from the committed snapshot and fails on any drift between the three layers. Registry capability
+badges are metadata expectations; browse-mode tools stay disabled regardless of them.
+
 ---
+
 
 ## 11. Invariants checklist
 

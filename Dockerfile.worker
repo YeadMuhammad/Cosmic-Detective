@@ -1,0 +1,13 @@
+# Reference image for the SPHEREx processing worker.
+# Deploy near IRSA: irsa.ipac.caltech.edu must be reachable and fast from here.
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+
+COPY worker/requirements.txt /app/worker/requirements.txt
+RUN pip install --no-cache-dir -r /app/worker/requirements.txt
+
+COPY worker/ /app/worker/
+
+WORKDIR /app/worker
+CMD ["python", "spherex_worker.py"]

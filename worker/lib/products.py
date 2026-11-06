@@ -1,0 +1,92 @@
+"""Processing-product registry for the SPHEREx worker.
+
+Each product maps a job's requested product name to the pipeline that builds
+it. Optional processing dependencies are detected before the worker starts a
+product; when a required dependency is missing the worker marks the job failed
+with a specific reason instead of pretending the product is unavailable for
+scientific reasons. Netlify/Supabase orchestrate; this module never talks to
+Netlify.
+"""
+from __future__ import annotations
+
+from typing import Any, Callable, Mapping
+
+try:  # pragma: no cover - exercised implicitly whenever astropy is present
+    import astropy  # noqa: F401
+    _ASTROPY_OK = True
+except Exception:  # pragma: no cover
+    _ASTROPY_OK = False
+
+
+def detect_dependencies() -> dict:
+    """Which optional heavy dependencies are importable right now?"""
+    status = {}
+    for module in ("astropy", "numpy", "photutils", "reproject", "supabase"):
+        try:
+            __import__(module)
+            status[module] = True
+        except Exception:
+            status[module] = False
+    return status
+
+
+def dependency_reason(status: Mapping[str, bool]) -> str | None:
+    """Human-readable failure reason, or None when every dependency is present."""
+    missing = sorted(name for name, ok in status.items() if not ok)
+    if missing:
+        return "worker dependencies unavailable: " + ", ".join(missing)
+    return None
+
+
+def staged_products(product: str, job: Mapping[str, Any]) -> list:
+    """The ordered processing stages for one product, as (stage, description)."""
+    if product == "cutout-render":
+        return [
+            ("verify-cutout", "bounded GET of the IRSA cutout, FITS-sniffed and byte-capped"),
+            ("read-image", "astropy.io.fits reads the IMAGE extension and pixel flags"),
+            ("stretch-render", "same-stretch render, East-left orientation, aligned grid"),
+        ]
+    if product == "photometry":
+        return [
+            ("verify-cutout", "bounded GET of the IRSA cutout, FITS-sniffed and byte-capped"),
+            ("read-planes", "IMAGE/FLAGS/VARIANCE/ZODI/PSF extensions at the target pixel"),
+            ("extract", "PSF/ePSF fit where valid; aperture extraction as documented fallback; ZODI never subtracted twice"),
+        ]
+    if product == "blink-pair":
+        return [
+            ("verify-cutouts", "bounded GET of both IRSA cutouts, FITS-sniffed and byte-capped"),
+            ("match-passband", "evaluate WCS-WAVE at the target in both observations and enforce configured tolerance"),
+            ("register", "reproject IMAGE planes to one target-centered TAN sky grid"),
+            ("render", "render both epochs using one shared intensity stretch"),
+        ]
+    if product == "band-composite":
+        return [
+            ("verify-cutouts", "bounded FITS downloads for three selected detector channels"),
+            ("read-planes", "read IMAGE, celestial WCS, and target-pixel wavelength metadata"),
+            ("reproject", "map channels independently to one target-centered TAN sky grid"),
+            ("render", "independent linear channel stretches for a false-color visualization"),
+        ]
+    raise KeyError(f"unknown product: {product!r}")
+
+
+def product_dependencies(product: str) -> list:
+    names = []
+    if product == "cutout-render":
+        names += ["astropy", "numpy"]
+    elif product == "photometry":
+        names += ["astropy", "numpy"]
+    elif product == "blink-pair":
+        names += ["astropy", "numpy", "reproject"]
+    elif product == "band-composite":
+        names += ["astropy", "numpy", "reproject"]
+    return sorted(set(names))
+
+
+def run_stage(stage: str, body: Any) -> Any:  # pragma: no cover - wired in worker main
+    """Stage entry point. Real pipelines import astropy lazily and degrade."""
+    raise NotImplementedError(f"stage {stage!r} is wired in spherex_worker.py")
+
+
+# Kept importable so tests can patch runner functions; the worker main loop
+# receives a runner mapping of stage -> callable(Callable[..., Any]).
+Runner = Callable[[str, Any], Any]

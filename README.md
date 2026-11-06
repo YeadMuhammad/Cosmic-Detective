@@ -18,7 +18,11 @@ Cosmic Detective approaches this as a game. Every mechanic is a plain-language v
 - **Progression.** XP, badges, and a rank ladder that gates tools and chapters. Rank 6 (Principal Investigator) plus an admin-granted approval can lead a research squad.
 - **Accounts and cloud saves.** Username and password sign-in with progress stored in Supabase. Guest play still works with no backend.
 - **Research squads.** A leader assigns live SPHEREx archive data to analysts. Analysts file findings, the leader verifies or sends them back, and verified work is filed to a **simulated** NASA intake.
-- **Open Sky Research Portal.** Search the live IRSA SPHEREx archive by RA and Dec, inspect results by detector band, and view the raw observation timeline. Blink, difference and light curve views for SPHEREx need aligned pixels or extracted photometry and are not available yet.
+- **Open Sky Research Portal.** Search the live IRSA SPHEREx archive by RA and Dec, inspect results by detector band, and view the raw observation timeline. Eligible live image pairs can be submitted to the Python worker for target-pixel wavelength checks, WCS reprojection to a common TAN grid, and visual blinking with a shared display stretch. This is visual inspection only; image flags are not overlaid and the tool does not report detections. Difference imaging and moving-object tracking remain disabled. Native photometry is not yet enabled. An optional IRSA VOTable reference importer can expose a light curve and trial-period fold only when its schema, units, target position, release, detector, exposure class, bandpass, flags, and selected fit-quality cutoff satisfy the analysis gates. The importer currently accepts TABLEDATA serialization, and compatibility with a representative downloaded IRSA export is still being validated.
+
+The registered Blink requires the `blink-pair` Supabase migration, Netlify `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` variables, and a running worker installed from `worker/requirements.txt`. If those services are not configured, the portal reports the processing service as unavailable; it never substitutes independent browser rendering for registered images.
+
+When developing locally, `npm run dev` starts Vite only and cannot serve `/.netlify/functions/spherex-job`. To try registered Blink locally, install/link the Netlify CLI and run `netlify dev` from the repository root. Configure the Supabase function environment variables, apply the processing and blink-product migrations, and start the Python worker separately. Netlify Dev serves the local site and its functions together.
 - **Accessible by design.** Dark mode, light mode, and a colorblind-safe mode using the Okabe-Ito palette. Verdicts always carry an icon and a label, never color alone.
 
 ### Scientific honesty
@@ -150,7 +154,7 @@ The game runs as a guest with no setup. Progress is saved in your browser only.
 
 1. Create a Supabase project and apply the SQL in [`supabase/migrations/`](supabase/migrations/).
 2. In the project's Auth settings, turn **Confirm email** off. Accounts use a derived address and nothing is ever emailed.
-3. Create `.env.local` in the repository root:
+3. Copy [`.env.local.example`](.env.local.example) to `.env.local` in the repository root and replace the placeholders:
 
    ```dotenv
    VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -159,7 +163,7 @@ The game runs as a guest with no setup. Progress is saved in your browser only.
 
 4. Restart `npm run dev`. The title screen now shows **Log in** and **Create account**.
 
-The publishable (anon) key is public by design. Never put a secret or service role key in a `VITE_` variable and never commit any `.env` file.
+The publishable (anon) key is public by design. Never put a secret or service role key in a `VITE_` variable and never commit any real `.env` file. For the local SPHEREx worker and Netlify function, copy [`.env.example`](.env.example) to `.env` and set the server-side Supabase URL and service role key there.
 
 ### Run Supabase locally (optional)
 
@@ -189,6 +193,7 @@ update public.profiles set can_lead = true where lower(username) = lower('YourUs
 | `npm run preview` | Serve the production build locally |
 | `npm run fetch-sky` | Refetch sky plates from NASA SkyView |
 | `npm run fetch-spherex` | Run `scripts/fetch-spherex.mjs` |
+| `npm run dev:all` | Starts `Netlify Dev` and the `Python worker` together |
 
 ## Documentation
 
