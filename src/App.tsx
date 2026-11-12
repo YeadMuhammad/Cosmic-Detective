@@ -16,6 +16,8 @@ import { Archive } from './screens/Archive'
 import { Settings } from './screens/Settings'
 import { ResearchPortal } from './screens/ResearchPortal'
 import { TeamScreen } from './screens/TeamScreen'
+import { StoryScreen } from './screens/StoryScreen'
+
 
 export default function App() {
   const route = useRoute()
@@ -37,21 +39,22 @@ export default function App() {
     case 'archive': screen = <Archive />; break
     case 'settings': screen = <Settings />; break
     case 'team': screen = <TeamScreen />; break
+    case 'story': screen = <StoryScreen chapter={n} />; break
     default: screen = <Title />
   }
   const isTitle = !base
 
-  return (
+return (
     <>
       <Starfield density={isTitle ? 0.6 : 1} />
       <div className="grain" aria-hidden />
-      {!isTitle && <HUD route={route} />}
+      {!isTitle && base !== 'story' && <HUD route={route} />}
       <main key={route} className={`stage ${isTitle ? 'title' : ''}`}>{screen}</main>
-      {base !== 'case' && <RankUp />}
+      {base !== 'case' && base !== 'story' && <RankUp />}
       <Guide />
       <DevInspector />
       <Presenter />
-      {!s.started && !isTitle && base !== 'archive' && <div className="toast mono">Sign your badge on the title screen to save a callsign.</div>}
+      {!s.started && !isTitle && base !== 'archive' && base !== 'story' && <div className="toast mono">Sign your badge on the title screen to save a callsign.</div>}
     </>
   )
 }

@@ -1,0 +1,114 @@
+/* Story screens. Uses the game's own tokens, so dark, light and colour-blind modes all work.
+   Memory scenes switch to a fixed warm sepia look on purpose: they are the player's remembered past. */
+
+.story { position: relative; min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; isolation: isolate; cursor: pointer; user-select: none; overflow: hidden; }
+.story-sepia {
+  position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 0.8s ease; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(255, 190, 110, 0.14), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, #2e1f12 0%, #1a1109 62%, #0b0703 100%);
+  box-shadow: inset 0 0 180px rgba(0, 0, 0, 0.75);
+}
+.story-sepia::after {
+  content: ''; position: absolute; inset: 0; opacity: 0.35; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.story.memory .story-sepia { opacity: 1; }
+
+.story-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px clamp(16px, 4vw, 48px); cursor: default; }
+.story.memory .story-top .kicker { color: #f0b86a; }
+.story.memory .link-btn { color: #c9b08a; }
+.story-dots { display: flex; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.story-dots li { width: 22px; height: 3px; background: var(--line-strong); transition: background 0.3s, width 0.3s; }
+.story-dots li.past { background: var(--accent); opacity: 0.55; }
+.story-dots li.now { background: var(--accent); width: 34px; }
+.story-hint { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; animation: pulse 1.8s infinite; }
+.story.memory .story-hint { color: #8a7650; }
+
+/* ---------------------------------------------------- title card */
+.story-title { grid-row: 2 / 4; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; padding: 0 24px 60px; }
+.story-title h1 { font-size: clamp(54px, 9vw, 120px); margin: 0; color: var(--rank); text-shadow: 0 5px 0 var(--rank-deep), 0 0 60px color-mix(in srgb, var(--rank) 35%, transparent); }
+.story-welcome { font-size: clamp(22px, 3vw, 34px); margin: 4px 0 0; font-weight: 600; letter-spacing: 0.02em; }
+.story-welcome b { color: var(--rank); font-weight: 700; }
+.story-title .soft { max-width: 46ch; }
+/* the one orchestrated moment: seven lights arrive one by one */
+.story-seven { display: flex; gap: 18px; align-items: flex-end; height: 34px; margin-bottom: 8px; }
+.story-seven i { width: 7px; height: 7px; border-radius: 50%; background: var(--star); box-shadow: 0 0 14px var(--star); opacity: 0; animation: arrive 0.7s calc(var(--i) * 0.28s + 0.3s) forwards, tw 3.4s calc(var(--i) * 0.4s + 2.4s) ease-in-out infinite; }
+.story-seven i:nth-child(odd) { margin-bottom: 14px; }
+.story-seven i:nth-child(3n) { margin-bottom: 26px; width: 9px; height: 9px; }
+@keyframes arrive { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: scale(1); } }
+@keyframes tw { 50% { opacity: 0.35; } }
+
+/* ---------------------------------------------------- art area */
+.story-art { display: grid; place-items: center; padding: 4px clamp(12px, 4vw, 48px); min-height: 0; animation: artIn 0.6s ease both; }
+@keyframes artIn { from { opacity: 0; } }
+.art-stack { position: relative; width: min(880px, 100%, calc((100vh - 340px) * 1.7778)); min-width: 260px; }
+.roof-svg { display: block; width: 100%; height: auto; border: 1px solid rgba(240, 184, 106, 0.28); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6); transition: filter 0.5s; }
+.roof-svg.dim { filter: brightness(0.8); }
+.tw { animation: tw 3.4s ease-in-out infinite; }
+.win { animation: flick 5s steps(1) infinite; opacity: 0; }
+.win.w2 { animation-delay: 2.5s; }
+@keyframes flick { 0% { opacity: 0; } 62% { opacity: 0; } 64% { opacity: 0.9; } 66% { opacity: 0.1; } 70%, 100% { opacity: 0.85; } }
+.point-arm { transform-origin: 44px 63px; animation: raise 1.2s 0.4s ease both; }
+@keyframes raise { from { transform: rotate(35deg); } }
+.roof-cluster { animation: arrive 1.6s 0.3s both; transform-origin: 113px 27px; }
+
+/* pleiades puzzle overlay shares the roof's viewBox, so stars line up exactly */
+.pz-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pz-star { cursor: pointer; outline: none; }
+.pz-hit { fill: transparent; }
+.pz-core { fill: #fff6dc; filter: drop-shadow(0 0 2px #ffe7b0); transition: r 0.2s; }
+.pz-star:not(.on) .pz-core { opacity: 0.75; }
+.pz-ring { fill: none; stroke: #ffe7b0; stroke-width: 0.35; stroke-dasharray: 1.2 1; opacity: 0.8; animation: ringp 1.8s ease-in-out infinite; }
+@keyframes ringp { 50% { opacity: 0.2; } }
+.pz-star:focus-visible .pz-ring { stroke: #fff; stroke-width: 0.7; opacity: 1; animation: none; }
+.pz-line { fill: none; stroke: #ffe7b0; stroke-width: 0.45; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+.pz-haze { opacity: 0.16; animation: arrive 1.4s both; filter: blur(3px); }
+.pz-note { font: 600 3.4px 'JetBrains Mono', monospace; fill: #ffe7b0; letter-spacing: 0.1px; }
+
+/* ---------------------------------------------------- present-day art */
+.dossier-card { position: relative; width: min(520px, 100%); padding: 28px 30px; background: var(--panel); border: 1px solid var(--line-strong); box-shadow: var(--shadow); clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px); }
+.dc-name { font-size: clamp(36px, 5vw, 56px); margin: 6px 0 14px; }
+.dc-stamp { position: absolute; right: 24px; top: 20px; font-size: 26px; letter-spacing: 0.12em; color: var(--ok); border: 3px solid var(--ok); padding: 0 10px; transform: rotate(8deg); opacity: 0.85; animation: stampDown 0.5s 0.4s both cubic-bezier(0.3, 1.8, 0.5, 1); }
+.dc-reads { display: flex; gap: 10px; font-size: 11px; margin-bottom: 18px; }
+.dc-reads span { padding: 3px 9px; border: 1px solid var(--line-strong); color: var(--muted); opacity: 0; animation: arrive 0.4s var(--d) forwards; }
+.dc-lines { display: grid; gap: 9px; }
+.dc-lines i { position: relative; display: block; height: 8px; background: var(--line); }
+.dc-lines i:nth-child(2) { width: 82%; } .dc-lines i:nth-child(4) { width: 70%; } .dc-lines i:nth-child(5) { width: 40%; }
+.dc-lines i.hot { height: 12px; background: color-mix(in srgb, var(--rank) 55%, transparent); transform-origin: left; animation: sweepIn 0.8s 2.9s both; }
+.dc-lines i.hot b { position: absolute; right: 0; top: -17px; font-size: 10px; font-weight: 400; color: var(--rank); letter-spacing: 0.1em; }
+@keyframes sweepIn { from { transform: scaleX(0); } }
+
+.logbook { width: min(440px, 100%); padding: 26px 30px; background: var(--panel); border: 1px solid var(--line-strong); border-left: 4px solid var(--accent); display: grid; gap: 16px; }
+.lb-line { display: flex; align-items: center; gap: 14px; font-size: clamp(20px, 2.6vw, 28px); font-weight: 600; opacity: 0; animation: arrive 0.5s var(--d) forwards; }
+.lb-line svg { color: var(--ok); flex-shrink: 0; }
+.lb-tick { stroke-dasharray: 20; stroke-dashoffset: 20; animation: draw 0.4s calc(var(--d) + 0.35s) forwards; }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.plate-box { position: relative; margin: 0; width: min(calc(100vh - 360px), 100%); min-width: 240px; aspect-ratio: 1; background: #000; border: 1px solid var(--line-strong); overflow: hidden; box-shadow: var(--shadow); }
+.plate-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------------------------------------------------- caption */
+.story-caption { display: flex; gap: 18px; width: min(860px, calc(100% - 32px)); margin: 6px auto 30px; padding: 18px 22px; cursor: pointer; animation: capIn 0.4s ease both; }
+@keyframes capIn { from { opacity: 0; transform: translateY(8px); } }
+.story-caption.present { background: var(--panel-solid); border: 1px solid var(--rank); box-shadow: var(--shadow), 0 0 0 4px color-mix(in srgb, var(--rank) 12%, transparent); }
+.cap-face { width: 84px; height: 84px; object-fit: cover; border: 2px solid var(--rank); flex-shrink: 0; clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px); }
+.cap-body { flex: 1; min-width: 0; }
+.cap-who { font-size: 10.5px; letter-spacing: 0.14em; margin-bottom: 8px; color: var(--rank); }
+.cap-text { margin: 0 0 12px; font-size: clamp(16px, 1.7vw, 19px); line-height: 1.65; white-space: pre-wrap; min-height: 5.2em; max-width: 64ch; }
+.cap-actions { display: flex; align-items: center; gap: 14px; min-height: 40px; cursor: default; }
+/* memory captions look like a page from a logbook */
+.story-caption.memory { background: linear-gradient(180deg, #efe2c4, #e2d1ab); color: var(--paper-ink); border: 0; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 0 70px rgba(120, 90, 30, 0.22); transform: rotate(-0.4deg); }
+.story-caption.memory .cap-who { color: #8a5a10; }
+.story-caption.memory .cap-text { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: clamp(14px, 1.5vw, 16px); line-height: 1.75; }
+.story-caption.memory .caret { background: #8a5a10; }
+.story-caption.memory .btn-ghost > span { color: var(--paper-ink); box-shadow: inset 0 0 0 1.5px #8a5a10; }
+.story-caption.memory .story-hint { color: #7a6a4a; }
+
+@media (max-width: 640px) {
+  .story-caption { flex-direction: column; gap: 10px; padding: 16px; }
+  .cap-face { width: 56px; height: 56px; }
+  .story-top .kicker { font-size: 9.5px; }
+  .story-dots li { width: 12px; } .story-dots li.now { width: 20px; }
+  .art-stack, .plate-box { width: 100%; }
+}

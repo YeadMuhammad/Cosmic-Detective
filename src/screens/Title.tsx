@@ -19,8 +19,12 @@ export function Title() {
   const start = () => {
     if (name.trim().length < 2) { setErr('Sign your badge with at least two characters.'); sfx.reject(); return }
     sfx.success()
-    set((p) => ({ ...p, callsign: name.trim(), started: true, tutorial: p.tutorialDone ? null : 1 }))
-    navigate(s.tutorialDone ? '/map' : '/case/1')
+    const seen = s.storySeen.includes(1)
+    set((p) => ({
+      ...p, callsign: name.trim(), started: true,
+      tutorial: p.tutorialDone || !seen ? null : 1,
+    }))
+    navigate(s.tutorialDone ? '/map' : seen ? '/case/1' : '/story/1')
   }
 
   return (

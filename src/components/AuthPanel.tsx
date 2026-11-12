@@ -21,8 +21,9 @@ export function AuthPanel() {
 
   // Same hand-off the guest button uses: first-timers get the tutorial, everyone else the case board.
   const go = (tutorialDone: boolean) => {
-    set((p) => ({ ...p, tutorial: tutorialDone ? null : 1 }))
-    navigate(tutorialDone ? '/map' : '/case/1')
+    const seen = s.storySeen.includes(1)
+    set((p) => ({ ...p, tutorial: tutorialDone || !seen ? null : 1 }))
+    navigate(tutorialDone ? '/map' : seen ? '/case/1' : '/story/1')
   }
 
   if (username) {
