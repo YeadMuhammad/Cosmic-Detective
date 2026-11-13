@@ -25,6 +25,10 @@ export function Settings() {
           <div><strong>Presenter controls</strong><p>A floating panel for live demos: load a pre-played save, jump ranks, unlock chapters. Shortcut: Shift+P.</p></div>
           <button className={`switch ${s.presenter ? 'on' : ''}`} role="switch" aria-checked={s.presenter} onClick={() => set((p) => ({ ...p, presenter: !p.presenter }))}><span /></button>
         </div>
+        <div className="set-row">
+          <div><strong>Replay the Chapter 1 story</strong><p>Dr. Chowdhury reads back the memory that brought you here.</p></div>
+          <Btn variant="ghost" onClick={() => navigate('/story/1')}>Replay</Btn>
+        </div>
         <div className="set-row danger">
           <div><strong>Reset progress</strong><p>Clears rank, experience, badges and case history on this device.</p></div>
           <Btn variant="danger" onClick={() => { if (confirm('Reset all progress on this device?')) { set((p) => ({ ...FRESH, theme: p.theme, colorblind: p.colorblind, presenter: p.presenter })); navigate('/') } }}>Reset</Btn>

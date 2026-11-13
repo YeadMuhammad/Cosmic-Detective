@@ -18,6 +18,7 @@ export interface GameState {
   artifacts: number
   clears: number
   completed: number[]
+  storySeen: number[]
   badges: string[]
   tutorial: number | null // active guided step (1-7)
   tutorialDone: boolean
@@ -37,7 +38,7 @@ const KEY = 'cosmic-detective:v1'
 export const FRESH: GameState = {
   callsign: '', started: false, theme: 'dark', colorblind: false, sound: true,
   xp: 0, tiles: 0, correct: 0, judged: 0, known: 0, artifacts: 0, clears: 0,
-  completed: [], badges: [], tutorial: null, tutorialDone: false, history: [], rankUp: null, presenter: false, last: null,
+  completed: [], badges: [],storySeen: [], tutorial: null, tutorialDone: false, history: [], rankUp: null, presenter: false, last: null,
 }
 
 /** A pre-played save so a presentation can jump straight into a rank-up moment. */

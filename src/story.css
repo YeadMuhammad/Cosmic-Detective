@@ -1,0 +1,545 @@
+/* ============================================================
+   STORY SCREENS · Cinematic Observatory & Memory Experience
+   Full-page immersive scene with floating poetic subtitle overlay
+   ============================================================ */
+
+/* Stage breakout to guarantee full viewport coverage */
+.stage:has(.story) {
+  animation: none;
+  transform: none;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+}
+
+.story {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 20;
+  overflow: hidden;
+  user-select: none;
+  cursor: pointer;
+  background: #020409;
+  isolation: isolate;
+}
+
+/* Deep cosmic midnight background atmosphere */
+.story-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 30%, rgba(20, 36, 75, 0.28) 0%, rgba(2, 4, 10, 0.98) 75%), #020409;
+  transition: opacity 0.8s ease;
+}
+
+/* ---------------------------------------------------- top HUD */
+.story-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px clamp(16px, 4vw, 40px);
+  background: linear-gradient(180deg, rgba(2, 4, 10, 0.85) 0%, rgba(2, 4, 10, 0.3) 60%, transparent 100%);
+  cursor: default;
+}
+
+.story-dots {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.story-dots li {
+  width: 24px;
+  height: 3px;
+  background: rgba(150, 175, 225, 0.2);
+  transition: background 0.3s, width 0.3s, box-shadow 0.3s;
+}
+
+.story-dots li.past {
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.story-dots li.now {
+  background: var(--accent);
+  width: 36px;
+  box-shadow: 0 0 10px var(--accent);
+}
+
+/* ---------------------------------------------------- visual stage */
+.story-art {
+  pointer-events: auto;
+}
+
+/* Full-bleed scenes (e.g. Roof night sky, Pleiades sky puzzle) */
+.story-art--full {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 5;
+  overflow: hidden;
+  animation: artIn 0.6s ease both;
+}
+
+.story-art--full .art-stack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.story-art--full .roof-svg,
+.story-art--full .pz-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  box-shadow: none;
+  display: block;
+  transition: filter 0.5s;
+}
+
+.roof-svg.dim { filter: brightness(0.7); }
+
+/* Focal artifacts (e.g. Dossier application, Logbook, Plates) */
+.story-art--focal {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 50px;
+  padding-bottom: 160px;
+  animation: artIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes artIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Realistic starlight twinkling animations */
+.tw-fast { animation: tw 1.6s ease-in-out infinite; }
+.tw-mid { animation: tw 2.8s ease-in-out infinite; }
+.tw-slow { animation: tw 4.2s ease-in-out infinite; }
+@keyframes tw {
+  0%, 100% { opacity: 0.95; }
+  50% { opacity: 0.22; }
+}
+
+.beacon { animation: beacon 1.2s steps(1) infinite; }
+@keyframes beacon {
+  0%, 40% { opacity: 0.95; }
+  41%, 100% { opacity: 0.05; }
+}
+
+.win { animation: flick 5s steps(1) infinite; opacity: 0; }
+.win.w2 { animation-delay: 2.5s; }
+@keyframes flick {
+  0% { opacity: 0; }
+  62% { opacity: 0; }
+  64% { opacity: 0.95; }
+  66% { opacity: 0.15; }
+  70%, 100% { opacity: 0.88; }
+}
+
+.roof-cluster {
+  animation: arrive 1.6s 0.3s both;
+  transform-origin: 115px 22px;
+}
+
+/* ---------------------------------------------------- Pleiades puzzle */
+.pz-star { cursor: pointer; outline: none; }
+.pz-hit { fill: transparent; }
+.pz-core {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 3px #a0c8ff);
+  transition: r 0.2s, filter 0.2s;
+}
+.pz-star:not(.on) .pz-core { opacity: 0.8; }
+.pz-star.on .pz-core {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 7px #70aaff);
+}
+.pz-ring {
+  fill: none;
+  stroke: #9ec5ff;
+  stroke-width: 0.32;
+  stroke-dasharray: 1.2 1;
+  opacity: 0.85;
+  animation: ringp 1.8s ease-in-out infinite;
+}
+@keyframes ringp { 50% { opacity: 0.25; } }
+.pz-star:focus-visible .pz-ring {
+  stroke: #fff;
+  stroke-width: 0.6;
+  opacity: 1;
+  animation: none;
+}
+.pz-line {
+  fill: none;
+  stroke: #a5ccff;
+  stroke-width: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 3px rgba(165, 204, 255, 0.65));
+}
+.pz-haze {
+  opacity: 0.24;
+  animation: arrive 1.4s both;
+  filter: blur(5px);
+}
+.pz-note {
+  font: 600 3.6px 'JetBrains Mono', monospace;
+  fill: #dbe8ff;
+  letter-spacing: 0.12px;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.85));
+}
+
+/* ---------------------------------------------------- focal items */
+.dossier-card {
+  position: relative;
+  width: min(500px, calc(100% - 40px));
+  padding: 24px 28px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+  clip-path: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
+}
+.dc-name { font-size: clamp(32px, 4.2vw, 48px); margin: 6px 0 12px; }
+.dc-stamp {
+  position: absolute;
+  right: 22px;
+  top: 18px;
+  font-size: 22px;
+  letter-spacing: 0.12em;
+  color: var(--ok);
+  border: 3px solid var(--ok);
+  padding: 0 9px;
+  transform: rotate(8deg);
+  opacity: 0.88;
+  animation: stampDown 0.5s 0.4s both cubic-bezier(0.3, 1.8, 0.5, 1);
+}
+.dc-reads { display: flex; gap: 10px; font-size: 11px; margin-bottom: 16px; }
+.dc-reads span {
+  padding: 3px 9px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  opacity: 0;
+  animation: arrive 0.4s var(--d) forwards;
+}
+.dc-lines { display: grid; gap: 8px; }
+.dc-lines i { position: relative; display: block; height: 7px; background: var(--line); }
+.dc-lines i:nth-child(2) { width: 82%; }
+.dc-lines i:nth-child(4) { width: 70%; }
+.dc-lines i:nth-child(5) { width: 40%; }
+.dc-lines i.hot {
+  height: 11px;
+  background: color-mix(in srgb, var(--rank) 55%, transparent);
+  transform-origin: left;
+  animation: sweepIn 0.8s 2.9s both;
+}
+.dc-lines i.hot b {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--rank);
+  letter-spacing: 0.1em;
+}
+@keyframes sweepIn { from { transform: scaleX(0); } }
+
+.logbook {
+  width: min(440px, calc(100% - 40px));
+  padding: 24px 28px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--accent);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.65);
+  display: grid;
+  gap: 14px;
+}
+.lb-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(18px, 2.2vw, 24px);
+  font-weight: 600;
+  opacity: 0;
+  animation: arrive 0.5s var(--d) forwards;
+}
+.lb-line svg { color: var(--ok); flex-shrink: 0; }
+.lb-tick {
+  stroke-dasharray: 20;
+  stroke-dashoffset: 20;
+  animation: draw 0.4s calc(var(--d) + 0.35s) forwards;
+}
+@keyframes draw { to { stroke-dashoffset: 0; } }
+
+.plate-box {
+  position: relative;
+  margin: 0;
+  width: min(calc(100vh - 340px), 400px, calc(100% - 40px));
+  aspect-ratio: 1;
+  background: #000;
+  border: 1px solid var(--line-strong);
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
+}
+.plate-box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------------------------------------------------- subtle bottom gradient */
+.story-gradient-bottom {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 140px;
+  z-index: 15;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(2, 4, 10, 0.75) 0%, rgba(2, 4, 10, 0.25) 50%, transparent 100%);
+  transition: opacity 0.5s ease;
+}
+
+/* ---------------------------------------------------- floating cinematic subtitle */
+.story-caption {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 36px));
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 14px 24px;
+  background: rgba(3, 6, 14, 0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  animation: capIn 0.35s ease both;
+  cursor: pointer;
+}
+
+@keyframes capIn {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.cap-kicker {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  opacity: 0.85;
+}
+
+.story.memory .cap-kicker {
+  color: rgba(210, 225, 255, 0.65);
+}
+
+.cap-text {
+  margin: 0 0 6px;
+  font-family: 'Chakra Petch', system-ui, sans-serif;
+  font-size: clamp(16.5px, 1.8vw, 21px);
+  font-weight: 500;
+  line-height: 1.55;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+  min-height: 2.2em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
+.cap-text.is-quote {
+  color: #ffe6aa;
+  font-style: italic;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 217, 140, 0.25);
+}
+
+.caret {
+  display: inline-block;
+  width: 6px;
+  height: 1.1em;
+  vertical-align: text-bottom;
+  margin-left: 4px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: blink 0.8s step-end infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Subtitle prompt line */
+.cap-hint-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  cursor: default;
+}
+
+.story-hint {
+  font-size: 11px;
+  color: rgba(180, 200, 235, 0.65);
+  letter-spacing: 0.06em;
+}
+
+.story-hint.ready {
+  color: #62c2e6;
+  font-weight: 600;
+  animation: pulse 1.6s infinite;
+}
+
+.story-hint.hint-puzzle {
+  color: #dbe8ff;
+  opacity: 0.9;
+}
+
+.cap-interactive-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.link-btn-glow {
+  background: none;
+  border: 1px solid rgba(130, 180, 255, 0.4);
+  border-radius: 4px;
+  padding: 3px 10px;
+  color: #dbe8ff;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.link-btn-glow:hover {
+  background: rgba(98, 194, 230, 0.2);
+  border-color: #62c2e6;
+}
+
+/* ---------------------------------------------------- title card */
+.story-title {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100vh;
+  gap: 16px;
+  padding: 40px 24px;
+}
+
+.story-title h1 {
+  font-size: clamp(52px, 8.5vw, 105px);
+  margin: 0;
+  color: var(--rank);
+  text-shadow: 0 4px 0 var(--rank-deep), 0 0 60px color-mix(in srgb, var(--rank) 35%, transparent);
+}
+
+.story-welcome {
+  font-size: clamp(20px, 2.6vw, 30px);
+  margin: 4px 0 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.story-welcome b {
+  color: var(--rank);
+  font-weight: 700;
+}
+
+.story-title .soft {
+  max-width: 48ch;
+  font-size: clamp(14px, 1.4vw, 16px);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.story-seven {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  height: 34px;
+  margin-bottom: 8px;
+}
+
+.story-seven i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 12px #a5cbff;
+  opacity: 0;
+  animation: arrive 0.7s calc(var(--i) * 0.28s + 0.3s) forwards, tw 3.4s calc(var(--i) * 0.4s + 2.4s) ease-in-out infinite;
+}
+
+.story-seven i:nth-child(odd) { margin-bottom: 14px; }
+.story-seven i:nth-child(3n) { margin-bottom: 26px; width: 8px; height: 8px; }
+
+@keyframes arrive {
+  from { opacity: 0; transform: scale(0.2); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ---------------------------------------------------- responsive */
+@media (max-width: 640px) {
+  .story-top {
+    padding: 12px 14px;
+  }
+  .story-top .kicker {
+    font-size: 9.5px;
+  }
+  .story-dots li {
+    width: 14px;
+  }
+  .story-dots li.now {
+    width: 24px;
+  }
+  .story-caption {
+    bottom: 14px;
+    width: calc(100% - 20px);
+    padding: 12px 16px;
+  }
+  .cap-text {
+    font-size: 15px;
+    min-height: 2.8em;
+  }
+  .story-art--focal {
+    padding-bottom: 180px;
+    padding-top: 50px;
+  }
+}
