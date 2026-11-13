@@ -6,9 +6,11 @@ import { TileViewer } from '../components/TileViewer'
 import { Pipeline, type Result } from '../components/Pipeline'
 import { Logo } from '../components/Chrome'
 import { RankEmblem } from '../components/ui'
+import { Art } from '../components/StoryScenes'
 import { cdn, navigate } from '../lib/util'
 import { sfx } from '../lib/sfx'
 import '../squad.css'
+import '../story.css'
 import '../judgeshow.css'
 
 /* Everything here is a self-contained demo: no game state, no server, no saving. */
@@ -33,7 +35,7 @@ const OBS = [
   ['D1', '2026-01-21 07:05 UTC', '2026W03_1A_0305_1', 'QR3'],
   ['D3', '2026-03-09 22:18 UTC', '2026W10_2B_0142_2', 'QR3'],
 ]
-const SQUAD = { name: 'Orion Watch', code: 'K7Q2ZP', lead: 'Det. Aria', analysts: [['Det. Kabir', 'Field Analyst'], ['Det. Mei', 'Field Analyst'], ['Det. Tariq', 'Learner']] }
+const SQUAD = { name: 'Orion Watch', code: 'K7Q2ZP', lead: 'Det. Ivan', analysts: [['Det. Farhana', 'Field Analyst'], ['Det. Redwan', 'Field Analyst'], ['Det. Purnota', 'Learner']] }
 
 const T = TILES.barnard
 const ARC = Math.hypot(T.a![0] - T.b![0], T.a![1] - T.b![1]) * T.size * 3600
@@ -85,6 +87,45 @@ function Loop() {
         {steps.map(([a, b], i) => <li key={a} className={t > i ? 'on' : ''}><span className="mono">{i + 1}</span><div><strong>{a}</strong><small>{b}</small></div></li>)}
       </ol>
     </Slide>
+  )
+}
+
+function StoryTeaser() {
+  const t = useTick(5, 800)
+  return (
+    <div className="js-slide js-story-teaser-slide">
+      {/* Full-bleed roof scene as the slide background */}
+      <div className="js-roof-bg" aria-hidden>
+        <Art art="roof" name="detective" />
+      </div>
+      <div className="js-copy" style={{ position: 'relative', zIndex: 2 }}>
+        <div className="mono kicker" style={{ color: 'var(--rank)' }}>NARRATIVE</div>
+        <h1 className="display js-title">Every chapter has a story to tell.</h1>
+        <P>Before you open a single case file, the game sets the scene. Each chapter opens with its own cinematic story — written scenes, typewriter dialogue, and a guide who hands you the evidence.</P>
+        <p className="js-p soft">The first story begins with a little boy on a rooftop, on a night with no power, and a question he never forgot.</p>
+      </div>
+      <div className="js-visual" style={{ position: 'relative', zIndex: 2 }}>
+        <div className="js-story-cards">
+          {CHAPTERS.map((ch, i) => (
+            <div key={ch.n} className={`js-story-card ${t > i ? 'on' : ''}`} style={{ '--accent': ch.accent } as any}>
+              <div className="js-story-card-art" style={{ backgroundImage: `url(${cdn(ch.art, 640)})` }} />
+              <div className="js-story-card-body">
+                <span className="mono">CH {ch.n}</span>
+                <strong>{ch.title}</strong>
+              </div>
+            </div>
+          ))}
+          <div className={`js-story-screen-mock ${t >= 3 ? 'on' : ''}`}>
+            <div className="mono" style={{ fontSize: 10, letterSpacing: '0.18em', color: 'var(--muted)', marginBottom: 6 }}>CHAPTER 1 · THE SEVEN LIGHTS</div>
+            <div style={{ fontSize: 15, fontStyle: 'italic', maxWidth: '32ch', lineHeight: 1.5, opacity: 0.9 }}>
+              "Welcome, Detective.<br />I read your application three times…<br /><br />It begins with a little boy,<br />a rooftop, and a night with no power."
+            </div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--accent)', marginTop: 10 }}>Bibha Chowdhuri · Senior Archivist</div>
+            <div className="js-story-caret" />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -288,7 +329,7 @@ function Review() {
       <section className="sq-panel js-squad">
         <ol className="jt-flow js-flow">{labels.map((l, i) => <li key={l} className={i <= stage ? 'on' : ''}>{l}</li>)}</ol>
         <article className="sq-job" data-status={status}>
-          <div className="sq-job-top"><strong>Det. Kabir</strong><span className="sq-chip">{labels[stage]}</span></div>
+          <div className="sq-job-top"><strong>Det. Farhana </strong><span className="sq-chip">{labels[stage]}</span></div>
           <span className="soft mono">RA 156.0933 · Dec -41.6447</span>
           {stage >= 1 && <p className="soft js-pop"><b>Possible moving source.</b> Bright source shifts between the January and March D3 frames, away from the neighbouring star.</p>}
           {stage >= 2 && <p className="soft js-pop">Leader’s note: registration looks clean. Verified.</p>}
@@ -314,7 +355,7 @@ function Finale({ replay }: { replay: () => void }) {
 export function JudgeShow() {
   const [i, setI] = useState(0)
   const slides = useMemo<ReactNode[]>(() => [
-    <Intro />, <Loop />, <Story />, <Blink />, <Verify />, <Progress />, <Diff />, <Bands />, <Curve />,
+    <Intro />, <Loop />, <StoryTeaser />, <Story />, <Blink />, <Verify />, <Progress />, <Diff />, <Bands />, <Curve />,
     <Portal />, <Fetch />, <Create />, <Join />, <Assign />, <Review />, <Finale replay={() => setI(0)} />,
   ], [])
   const last = slides.length - 1
