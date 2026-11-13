@@ -17,7 +17,7 @@ import { Settings } from './screens/Settings'
 import { ResearchPortal } from './screens/ResearchPortal'
 import { TeamScreen } from './screens/TeamScreen'
 import { StoryScreen } from './screens/StoryScreen'
-
+import { JudgeShow } from './screens/JudgeShow'
 
 export default function App() {
   const route = useRoute()
@@ -39,6 +39,7 @@ export default function App() {
     case 'archive': screen = <Archive />; break
     case 'settings': screen = <Settings />; break
     case 'team': screen = <TeamScreen />; break
+    case 'judge': screen = <JudgeShow />; break
     case 'story': screen = <StoryScreen chapter={n} />; break
     default: screen = <Title />
   }

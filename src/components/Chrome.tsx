@@ -11,6 +11,7 @@ const NAV = [
   ['/dossier', 'Dossier'],
   ['/archive', 'Mission'],
   ['/team', 'The Team'],
+  ['/judge', 'Judge Mode'],
 ] as const
 
 export function Logo({ big = false }: { big?: boolean }) {
