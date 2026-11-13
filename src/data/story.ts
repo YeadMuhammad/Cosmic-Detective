@@ -5,12 +5,14 @@
 export type StoryArt = 'archive' | 'roof' | 'pleiades' | 'logbook' | 'plates'
 
 export interface StoryScene {
-  /** present = Dr. Chowdhury in the archive. memory = the player's own memory, warm sepia look. */
+  /** present = Dr. Chowdhury in the archive. memory = the player's own memory, dark starry aesthetic. */
   mode: 'present' | 'memory'
   /** short label shown above the caption */
   place: string
   art: StoryArt
   text: string
+  /** Emotional fragmented story beats revealed sentence-by-sentence */
+  beats?: string[]
   /** optional tap/drag mini-interaction (never blocks progress) */
   interaction?: 'pleiades'
 }
@@ -34,24 +36,65 @@ export const STORIES: Record<number, StoryChapter> = {
     cta: 'Open Case 001',
     scenes: [
       {
-        mode: 'present', place: 'The archive', art: 'archive',
+        mode: 'present',
+        place: 'The archive',
+        art: 'archive',
         text: 'Welcome, {name}. I read your application three times. One paragraph stayed with me, so before I hand you your first case, let me read it back to you.',
+        beats: [
+          'Welcome, {name}.',
+          'I read your application three times.',
+          'One paragraph stayed with me.',
+          'So before I hand you your first case, let me read it back to you.',
+        ],
       },
       {
-        mode: 'memory', place: 'Memory · the roof · age six', art: 'roof',
+        mode: 'memory',
+        place: 'Memory · the roof · age six',
+        art: 'roof',
         text: 'You were six. The power had gone out, as it often did, and the roof was still warm from the day. Abbu knelt beside you and pointed at a small smudge of light.\n\n“How many do you see?”',
+        beats: [
+          'You were six.',
+          'The power had gone out, as it often did...',
+          '...and the roof was still warm from the day.',
+          'Abbu knelt beside you and pointed at a small smudge of light.',
+          '“How many do you see?”',
+        ],
       },
       {
-        mode: 'memory', place: 'Memory · the count', art: 'pleiades', interaction: 'pleiades',
+        mode: 'memory',
+        place: 'Memory · the count',
+        art: 'pleiades',
+        interaction: 'pleiades',
         text: 'You counted slowly, one finger at a time. “Seven.” He smiled the way he did when you were almost right.\n\n“Some people see six. Some see nine. The eyes keep trying to settle it. So write down what you see, and check again tomorrow.”',
+        beats: [
+          'You counted slowly, one finger at a time.',
+          '“Seven.”',
+          'He smiled the way he did when you were almost right.',
+          '“Some people see six. Some see nine. The eyes keep trying to settle it.”',
+          '“So write down what you see, and check again tomorrow.”',
+        ],
       },
       {
-        mode: 'present', place: 'The archive', art: 'logbook',
+        mode: 'present',
+        place: 'The archive',
+        art: 'logbook',
         text: 'You wrote that you have been checking again ever since. That habit is the entire job: look carefully, write it down, doubt yourself, look again.',
+        beats: [
+          'You wrote that you have been checking again ever since.',
+          'That habit is the entire job:',
+          'Look carefully. Write it down. Doubt yourself. Look again.',
+        ],
       },
       {
-        mode: 'present', place: 'The archive', art: 'plates',
+        mode: 'present',
+        place: 'The archive',
+        art: 'plates',
         text: 'That child on the roof is the reason you are here, {name}. Two plates of the same sky disagree about one point of light. Go and see what is really there. Your first case is open.',
+        beats: [
+          'That child on the roof is the reason you are here, {name}.',
+          'Two plates of the same sky disagree about one point of light.',
+          'Go and see what is really there. Your first case is open.',
+        ],
       },
     ],
   },
