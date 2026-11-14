@@ -28,6 +28,7 @@ import os
 import socket
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import urllib.request
 from urllib.error import HTTPError, URLError
@@ -62,6 +63,17 @@ POLL_SECONDS = float(os.environ.get("WORKER_POLL_SECONDS", "5"))
 WORKER_ID = os.environ.get("WORKER_ID", f"{socket.gethostname()}-{os.getpid()}")
 
 
+def _download_all(urls: list[str]) -> list:
+    """Downloads cutouts concurrently, returning results in input order.
+
+    Job time is dominated by IRSA latency, not CPU (reproject + PNG is ~0.3 s per
+    image at the 512 px cap), so independent downloads should overlap. The first
+    failure is raised, as the sequential code did.
+    """
+    with ThreadPoolExecutor(max_workers=max(1, len(urls))) as pool:
+        return list(pool.map(cutouts.download_verified_cutout, urls))
+
+
 def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
     """Runs one claimed job end to end; returns the uploaded object path.
 
@@ -92,20 +104,31 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         reference_url = str(params.get("referenceCutoutUrl") or "")
         if not reference_url:
             raise RuntimeError("blink-pair job is missing its reference cutout")
-        body, verified = cutouts.download_verified_cutout(cutout_url)
         raw_candidates = params.get("referenceCandidates")
         candidates = json.loads(raw_candidates) if raw_candidates else []
         if not candidates:
             candidates = [{"cutoutUrl": reference_url, "obsId": params.get("referenceObsId"), "date": None}]
         if not isinstance(candidates, list) or len(candidates) > 8:
             raise RuntimeError("blink-pair job contains an invalid reference candidate list")
+        # The first reference candidate is the one used in the common case, so fetch it
+        # while the target downloads. Its failure is handled per candidate below,
+        # exactly like later candidates; a target failure still raises immediately.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            first_reference = pool.submit(
+                cutouts.download_verified_cutout, str(candidates[0].get("cutoutUrl") or ""))
+            body, verified = cutouts.download_verified_cutout(cutout_url)
     elif product == "band-composite":
-        body, verified = cutouts.download_verified_cutout(cutout_url)
         params = job.get("params") or {}
         raw_channels = params.get("channels")
         channels = json.loads(raw_channels) if raw_channels else []
         if not isinstance(channels, list) or len(channels) != 3:
             raise RuntimeError("band-composite job must contain exactly three channels")
+        # Target + three channel cutouts are independent: download them concurrently
+        # (the target is normally one of the channels, so duplicates are fetched once).
+        channel_urls = list(dict.fromkeys(
+            [cutout_url, *(str(channel.get("cutoutUrl") or "") for channel in channels)]))
+        downloaded = dict(zip(channel_urls, _download_all(channel_urls)))
+        body, verified = downloaded[cutout_url]
     elif product == "photometry":
         body, verified = cutouts.download_verified_cutout(cutout_url)
     else:
@@ -118,10 +141,13 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         params = job.get("params") or {}
         failures = []
         payload_object = None
-        for candidate in candidates:
+        for index, candidate in enumerate(candidates):
             candidate_url = str(candidate.get("cutoutUrl") or "")
             try:
-                reference_body, reference_verified = cutouts.download_verified_cutout(candidate_url)
+                if index == 0:
+                    reference_body, reference_verified = first_reference.result()
+                else:
+                    reference_body, reference_verified = cutouts.download_verified_cutout(candidate_url)
             except Exception as error:
                 failures.append(f"{candidate.get('obsId', 'candidate')}: {type(error).__name__}: {error}")
                 continue
@@ -147,10 +173,7 @@ def process_job(job, jobs: Jobs, supabase_url: str, deps_status=None) -> str:
         params = job.get("params") or {}
         channel_blobs = []
         for channel in channels:
-            if channel.get("cutoutUrl") == cutout_url:
-                channel_body, channel_verified = body, verified
-            else:
-                channel_body, channel_verified = cutouts.download_verified_cutout(str(channel.get("cutoutUrl") or ""))
+            channel_body, _channel_verified = downloaded[str(channel.get("cutoutUrl") or "")]
             channel_blobs.append({**channel, "fits": channel_body})
         payload_object = compose_band_channels(
             channel_blobs, float(job["ra"]), float(job["dec"]),
