@@ -31,6 +31,20 @@ import time
 from pathlib import Path
 import urllib.request
 from urllib.error import HTTPError, URLError
+
+# TLS trust: verify certificates against the OS trust store. On Windows, Python
+# only sees roots/intermediates already installed there, so IRSA downloads could
+# fail with "[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer
+# certificate" (surfaced as the job's 'URLError: ...' failure reason). Must run
+# before any HTTPS request. Optional: without truststore (or on Python < 3.10)
+# the default certs / SSL_CERT_FILE are used, as before.
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 from dotenv import load_dotenv
 
 # Load the ignored project-root .env for local runs; real environment secrets win.
