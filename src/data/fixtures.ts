@@ -231,7 +231,7 @@ export const PLAYERS: Player[] = [
 
 export const COMMUNITY = { tiles: 1284617, known: 38402, rejected: 216930, candidates: 211, detectives: 9318 }
 
-export const GUIDE = { name: 'Dr. Biva Chowdhury', role: 'Survey Lead · Case Supervisor', img: '/img/guide.png' }
+export const GUIDE = { name: 'Dr. Bibha Chowdhuri', role: 'Survey Lead · Case Supervisor', img: '/img/guide.png' }
 
 /** Ledger label for any case item: a sky tile (with thumbnail) or a light curve (no thumbnail). */
 export const caseItem = (id: string): { code: string; name: string; img: string | null } =>
