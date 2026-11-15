@@ -3,3 +3,4 @@ numpy>=1.26
 photutils>=1.10
 reproject>=0.13
 python-dotenv>=1.0
+truststore>=0.10
