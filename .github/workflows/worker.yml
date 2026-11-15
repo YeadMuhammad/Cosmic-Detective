@@ -1,0 +1,25 @@
+# .github/workflows/worker.yml
+name: worker
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"   # optional safety net for missed dispatches
+concurrency:
+  group: worker
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: worker/requirements.txt
+      - run: pip install -r worker/requirements.txt
+      - run: python worker/main.py --drain
+        env:
+          JOBS_SUPABASE_URL: ${{ secrets.JOBS_SUPABASE_URL }}
+          JOBS_SUPABASE_SERVICE_KEY: ${{ secrets.JOBS_SUPABASE_SERVICE_KEY }}
