@@ -178,6 +178,11 @@ class _UrllibResponse:
         self._raw.close()
 
 
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, _request, _response, _code, _msg, _headers, _new_url):
+        return None
+
+
 class _Exchange:
     """One request/response, over a keep-alive connection or a one-shot urllib call.
 
@@ -206,16 +211,34 @@ class _Exchange:
             _forget(self._url, self._entry)
 
 
-def _send_via_urllib(method: str, url: str, headers: dict, body: bytes | None, timeout: float) -> _Exchange:
+def _send_via_urllib(
+    method: str,
+    url: str,
+    headers: dict,
+    body: bytes | None,
+    timeout: float,
+    follow_redirects: bool = True,
+) -> _Exchange:
     request = urllib.request.Request(url, data=body, method=method, headers=headers)
     try:
-        raw = urllib.request.urlopen(request, timeout=timeout)
+        if follow_redirects:
+            raw = urllib.request.urlopen(request, timeout=timeout)
+        else:
+            opener = urllib.request.build_opener(_NoRedirectHandler)
+            raw = opener.open(request, timeout=timeout)
     except urllib.error.HTTPError as error:
         raw = error  # non-2xx: carries status, headers and body like a response
     return _Exchange(_UrllibResponse(raw), url, None)
 
 
-def _send(method: str, url: str, headers: dict, body: bytes | None, timeout: float) -> _Exchange:
+def _send(
+    method: str,
+    url: str,
+    headers: dict,
+    body: bytes | None,
+    timeout: float,
+    follow_redirects: bool = True,
+) -> _Exchange:
     """Sends one request, preferring this thread's keep-alive connection.
 
     A reused connection that died while idle is retried exactly once on a
@@ -223,9 +246,13 @@ def _send(method: str, url: str, headers: dict, body: bytes | None, timeout: flo
     """
     parts = urllib.parse.urlsplit(url)
     if _proxied(parts.scheme, parts.hostname or ""):
-        return _send_via_urllib(method, url, headers, body, timeout)
+        return _send_via_urllib(method, url, headers, body, timeout, follow_redirects)
+    started = time.monotonic()
     for attempt in (0, 1):
-        entry = _borrow(url, timeout)
+        remaining = timeout - (time.monotonic() - started)
+        if remaining <= 0:
+            raise TimeoutError("request exceeded its deadline")
+        entry = _borrow(url, remaining)
         connection, served = entry
         try:
             connection.request(method, _selector(url), headers=headers, body=body)
@@ -253,7 +280,16 @@ def verify_fits(head: bytes) -> bool:
     return head[:9] in (b"SIMPLE  =", b"XTENSION") or head[:6] == b"SIMPLE"
 
 
-def read_bounded(response, cap_bytes: int) -> bytes:
+def _set_response_timeout(response, timeout: float) -> None:
+    raw = getattr(response, "_raw", response)
+    file_object = getattr(raw, "fp", None)
+    raw_file = getattr(file_object, "raw", None)
+    socket_object = getattr(raw_file, "_sock", None)
+    if socket_object is not None:
+        socket_object.settimeout(timeout)
+
+
+def read_bounded(response, cap_bytes: int, deadline: float | None = None) -> bytes:
     """Reads an HTTP response body, refusing anything bigger than cap_bytes.
 
     Raises PayloadTooLarge when either the declared Content-Length or the
@@ -265,6 +301,11 @@ def read_bounded(response, cap_bytes: int) -> bytes:
         raise PayloadTooLarge(f"declared {declared} bytes > cap {cap_bytes}")
     chunks, total = [], 0
     while True:
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("response read exceeded its deadline")
+            _set_response_timeout(response, remaining)
         chunk = response.read(65536)
         if not chunk:
             break
@@ -288,13 +329,16 @@ def verify_cutout_support(url: str, cap_bytes: int = 33_554_432, timeout: float 
     return descriptor
 
 
-def _download_once(url: str, cap_bytes: int, timeout: float) -> tuple[bytes, dict]:
+def _download_once(url: str, cap_bytes: int, deadline: float) -> tuple[bytes, dict]:
     """One bounded GET, following redirects; raises HTTPError for statuses."""
     for _hop in range(_MAX_REDIRECTS + 1):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("cutout download exceeded its deadline")
         exchange = _send("GET", url, {
             "Accept": "application/fits, */*;q=0.8",
             "User-Agent": USER_AGENT,
-        }, None, timeout)
+        }, None, remaining)
         response = exchange.response
         location = response.headers.get("Location")
         if response.status in _REDIRECT_STATUSES and location:
@@ -308,7 +352,7 @@ def _download_once(url: str, cap_bytes: int, timeout: float) -> tuple[bytes, dic
             # _retry_after_seconds can still honour Retry-After.
             raise urllib.error.HTTPError(url, response.status, response.reason, response.headers, None)
         try:
-            body = read_bounded(response, cap_bytes)
+            body = read_bounded(response, cap_bytes, deadline)
         except BaseException:
             exchange.discard()  # mid-stream abort leaves the connection unusable
             raise
@@ -355,11 +399,13 @@ def download_verified_cutout(
     (honouring a numeric Retry-After, capped). Stale keep-alive reconnects are
     handled inside _send and never consume an attempt. The last error is
     re-raised unchanged so the job's failure reason keeps the real exception
-    type.
+    type. `timeout` is a total deadline across redirects, response reads,
+    retries, and backoff.
     """
+    deadline = time.monotonic() + timeout
     for attempt in range(1, attempts + 1):
         try:
-            return _download_once(url, cap_bytes, timeout)
+            return _download_once(url, cap_bytes, deadline)
         except urllib.error.HTTPError as error:  # before OSError: HTTPError is one
             if error.code not in RETRY_STATUSES or attempt == attempts:
                 raise
@@ -373,8 +419,11 @@ def download_verified_cutout(
                 raise
             delay = BACKOFF_SECONDS * attempt
             why = type(error).__name__
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("cutout download exceeded its deadline") from error
         print(f"  cutout fetch {attempt}/{attempts} failed ({why}); retrying in {delay:.0f}s")
-        sleep(delay)
+        sleep(min(delay, remaining))
     raise AssertionError("unreachable")  # loop always returns or raises
 
 
@@ -404,13 +453,15 @@ def post_bytes(url: str, payload: bytes, headers: dict[str, str],
     """POSTs payload over this thread's keep-alive connection.
 
     Returns (status, headers, body); non-2xx statuses are returned, not
-    raised, so the caller decides what they mean. Used by the worker for
-    Supabase Storage uploads: the storage host shares this warm-connection
-    layer, so an upload costs one request, not one TLS handshake + request.
+    raised, so the caller decides what they mean. Upload redirects are
+    returned as-is rather than followed, so POST bodies and credentials never
+    cross an origin. Used by the worker for Supabase Storage uploads: the
+    storage host shares this warm-connection layer, so an upload costs one
+    request, not one TLS handshake + request.
     Safe to re-send after a stale-connection reconnect because callers upload
     with x-upsert to a deterministic object path (idempotent).
     """
-    exchange = _send("POST", url, headers, payload, timeout)
+    exchange = _send("POST", url, headers, payload, timeout, follow_redirects=False)
     try:
         body = read_bounded(exchange.response, cap_bytes)
     except BaseException:
